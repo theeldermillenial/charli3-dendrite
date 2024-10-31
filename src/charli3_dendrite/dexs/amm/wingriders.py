@@ -1,5 +1,6 @@
 """WingRiders DEX Module."""
 
+from ast import With
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -8,6 +9,7 @@ from typing import Union
 
 from pycardano import Address
 from pycardano import PlutusData
+from pycardano import RawPlutusData
 
 from charli3_dendrite.dataclasses.datums import AssetClass
 from charli3_dendrite.dataclasses.datums import OrderDatum
@@ -18,6 +20,7 @@ from charli3_dendrite.dataclasses.models import OrderType
 from charli3_dendrite.dataclasses.models import PoolSelector
 from charli3_dendrite.dexs.amm.amm_types import AbstractConstantProductPoolState
 from charli3_dendrite.dexs.amm.amm_types import AbstractStableSwapPoolState
+from charli3_dendrite.dexs.amm.vyfi import Deposit
 from charli3_dendrite.dexs.core.errors import NotAPoolError
 
 
@@ -241,6 +244,158 @@ class WingRidersOrderDatum(OrderDatum):
 
 
 @dataclass
+class NoDatum(PlutusData):
+    """WingRiders no datum."""
+
+    CONSTR_ID = 0
+
+
+@dataclass
+class HashDatum(PlutusData):
+    """WingRiders hash datum."""
+
+    CONSTR_ID = 1
+
+
+@dataclass
+class InlineDatum(PlutusData):
+    """WingRiders inline datum."""
+
+    CONSTR_ID = 2
+
+
+@dataclass
+class SwapAction(PlutusData):
+    """Swap."""
+
+    CONSTR_ID = 0
+
+    swap_direction: Union[AtoB, BtoA]
+    minimum_receive: int
+
+
+@dataclass
+class AddLiquidityAction(PlutusData):
+    """Add Liquidity."""
+
+    CONSTR_ID = 1
+
+    minimum_receive: int
+
+
+@dataclass
+class WithdrawLiquidityAction(PlutusData):
+    """Add Liquidity."""
+
+    CONSTR_ID = 2
+
+    minimum_receive_a: int
+    minimum_receive_b: int
+
+
+@dataclass
+class WingRidersV2OrderDatum(OrderDatum):
+    """WingRiders order datum."""
+
+    oil: int
+    beneficiary: PlutusFullAddress
+    owner_address: PlutusFullAddress
+    compensation_datum: bytes
+    compensation_datum_type: Union[NoDatum, HashDatum, InlineDatum]
+    deadline: int
+    asset_a_symbol: bytes
+    asset_a_token: bytes
+    asset_b_symbol: bytes
+    asset_b_token: bytes
+    action: Union[SwapAction, AddLiquidityAction, WithdrawLiquidityAction]
+    a_scale: int
+    b_scale: int
+
+    @classmethod
+    def create_datum(
+        cls,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        batcher_fee: Assets,
+        deposit: Assets,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ):
+        """Create a WingRiders order datum."""
+        timeout = int(((datetime.utcnow() + timedelta(days=360)).timestamp()) * 1000)
+
+        merged = in_assets + out_assets
+        if in_assets.unit() == merged.unit():
+            direction = AtoB()
+        else:
+            direction = BtoA()
+
+        plutus_address = PlutusFullAddress.from_address(address_source)
+
+        return WingRidersV2OrderDatum(
+            oil=2000000,
+            beneficiary=plutus_address,
+            owner_address=plutus_address,
+            compensation_datum=b"",
+            compensation_datum_type=NoDatum(),
+            deadline=timeout,
+            asset_a_symbol=bytes.fromhex(merged.unit()[:56])
+            if merged.unit() != "lovelace"
+            else b"",
+            asset_a_token=bytes.fromhex(merged.unit()[56:])
+            if merged.unit() != "lovelace"
+            else b"",
+            asset_b_symbol=bytes.fromhex(merged.unit(1)[:56]),
+            asset_b_token=bytes.fromhex(merged.unit(1)[56:]),
+            action=SwapAction(
+                swap_direction=direction, minimum_receive=out_assets.quantity()
+            ),
+            a_scale=0,
+            b_scale=0,
+        )
+
+    def address_source(self) -> Address:
+        return self.owner_address.to_address()
+
+    def requested_amount(self) -> Assets:
+        if isinstance(self.action, AddLiquidityAction):
+            return Assets({"lp": self.action.minimum_receive})
+        elif isinstance(self.action, SwapAction):
+            if isinstance(self.action.swap_direction, BtoA):
+                if self.asset_a_symbol == "":
+                    asset_a = "lovelace"
+                else:
+                    asset_a = (self.asset_a_symbol + self.asset_a_token).hex()
+                return Assets(
+                    root={asset_a: self.action.minimum_receive},
+                )
+            else:
+                asset_b = (self.asset_b_symbol + self.asset_b_token).hex()
+                return Assets(
+                    root={asset_b: self.action.minimum_receive},
+                )
+        elif isinstance(self.detail, WithdrawLiquidityAction):
+            return Assets(
+                {
+                    self.config.assets.asset_a.assets.unit(): self.detail.min_amount_a,
+                    self.config.assets.asset_b.assets.unit(): self.detail.min_amount_b,
+                },
+            )
+
+    def order_type(self) -> OrderType | None:
+        order_type = None
+        if isinstance(self.detail, SwapAction):
+            order_type = OrderType.swap
+        elif isinstance(self.detail, AddLiquidityAction):
+            order_type = OrderType.deposit
+        elif isinstance(self.detail, WithdrawLiquidityAction):
+            order_type = OrderType.withdraw
+
+        return order_type
+
+
+@dataclass
 class LiquidityPoolAssets(PlutusData):
     """Encode a pair of assets for the WingRiders DEX."""
 
@@ -269,6 +424,59 @@ class WingRidersPoolDatum(PoolDatum):
 
     def pool_pair(self) -> Assets | None:
         return self.datum.assets.asset_a.assets + self.datum.assets.asset_b.assets
+
+
+@dataclass
+class CPPDatum(PlutusData):
+    """WingRiders pool datum."""
+
+    CONSTR_ID = 0
+
+
+@dataclass
+class SSPDatum(PlutusData):
+    """WingRiders pool datum."""
+
+    CONSTR_ID = 1
+
+    parameter_d: int
+    scale_a: int
+    scale_b: int
+
+
+@dataclass
+class WingRidersV2PoolDatum(PoolDatum):
+    """WingRiders pool datum."""
+
+    CONSTR_ID = 0
+    request_validator_hash: bytes
+    asset_a_symbol: bytes
+    asset_a_token: bytes
+    asset_b_symbol: bytes
+    asset_b_token: bytes
+    swap_fee_in_basis: int
+    protocol_fee_in_basis: int
+    project_fee_in_basis: int
+    reserve_fee_in_basis: int
+    fee_basis: int
+    agent_fee_ada: int
+    last_interaction: int
+    treasury_a: int
+    treasury_b: int
+    project_treasury_a: int
+    project_treasury_b: int
+    reserve_treasury_a: int
+    reserve_treasury_b: int
+    project_beneficiary: RawPlutusData
+    reserve_beneficiary: RawPlutusData
+    pool_specifics: Union[CPPDatum, SSPDatum]
+
+    def pool_pair(self) -> Assets | None:
+        asset_a = (self.asset_a_symbol + self.asset_a_token).hex()
+        if asset_a == "":
+            asset_a = "lovelace"
+        asset_b = (self.asset_b_symbol + self.asset_b_token).hex()
+        return Assets(root={asset_a: 0, asset_b: 0})
 
 
 class WingRidersCPPState(AbstractConstantProductPoolState):
@@ -405,3 +613,143 @@ class WingRidersSSPState(AbstractStableSwapPoolState, WingRidersCPPState):
     @classmethod
     def dex_policy(cls) -> str:
         return ["980e8c567670d34d4ec13a0c3b6de6199f260ae5dc9dc9e867bc5c934c"]
+
+
+class WingRidersV2CPPState(AbstractConstantProductPoolState):
+    """WingRiders CPP state."""
+
+    fee: int = 35
+    _batcher = Assets(lovelace=2000000)
+    _deposit = Assets(lovelace=2000000)
+    _stake_address: ClassVar[Address] = Address.from_primitive(
+        "addr1w8qnfkpe5e99m7umz4vxnmelxs5qw5dxytmfjk964rla98q605wte",
+    )
+    _pool_datum_parsed: WingRidersV2PoolDatum | None = None
+
+    @classmethod
+    def dex(cls) -> str:
+        return "WingRidersV2"
+
+    @classmethod
+    def order_selector(self) -> list[str]:
+        return [self._stake_address.encode()]
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        return PoolSelector(
+            addresses=["addr1wxhew7fmsup08qvhdnkg8ccra88pw7q5trrncja3dlszhqczc0qfe"],
+            assets=cls.dex_policy(),
+        )
+
+    @property
+    def swap_forward(self) -> bool:
+        return False
+
+    @property
+    def pool_id(self) -> str:
+        """A unique identifier for the pool."""
+        return self.pool_nft.unit()
+
+    @property
+    def stake_address(self) -> Address:
+        return self._stake_address
+
+    @classmethod
+    def order_datum_class(cls) -> type[WingRidersV2OrderDatum]:
+        return WingRidersV2OrderDatum
+
+    @classmethod
+    def pool_datum_class(cls) -> type[WingRidersV2PoolDatum]:
+        return WingRidersV2PoolDatum
+
+    @classmethod
+    def pool_policy(cls) -> list[str]:
+        return ["6fdc63a1d71dc2c65502b79baae7fb543185702b12c3c5fb639ed737"]
+
+    @classmethod
+    def dex_policy(cls) -> list[str]:
+        return ["6fdc63a1d71dc2c65502b79baae7fb543185702b12c3c5fb639ed7374c"]
+
+    @classmethod
+    def skip_init(cls, values) -> bool:
+        if "pool_nft" in values and "dex_nft" in values:
+            if cls.dex_policy()[0] not in values["dex_nft"]:
+                raise NotAPoolError("Invalid DEX NFT")
+            if len(values["assets"]) == 3:
+                # Send the ADA token to the end
+                if isinstance(values["assets"], Assets):
+                    values["assets"].root["lovelace"] = values["assets"].root.pop(
+                        "lovelace",
+                    )
+                else:
+                    values["assets"]["lovelace"] = values["assets"].pop("lovelace")
+            values["assets"] = Assets.model_validate(values["assets"])
+            return True
+        else:
+            return False
+
+    @property
+    def pool_datum(self) -> PlutusData:
+        """The pool state datum."""
+        if self._pool_datum_parsed is None:
+            self._pool_datum_parsed = WingRidersV2PoolDatum.from_cbor(self.datum_cbor)
+        return self._pool_datum_parsed
+
+    @classmethod
+    def post_init(cls, values):
+        super().post_init(values)
+
+        assets = values["assets"]
+        datum: WingRidersV2PoolDatum = WingRidersV2PoolDatum.from_cbor(
+            values["datum_cbor"]
+        )
+
+        if len(assets) == 2:
+            assets.root[assets.unit(0)] -= 3000000
+
+        assets.root[assets.unit(0)] -= (
+            datum.treasury_a - datum.project_treasury_a - datum.reserve_treasury_a
+        )
+        assets.root[assets.unit(1)] -= (
+            datum.treasury_b - datum.project_treasury_b - datum.reserve_treasury_b
+        )
+
+        values["fee"] = int(
+            (
+                datum.swap_fee_in_basis
+                + datum.protocol_fee_in_basis
+                + datum.project_fee_in_basis
+            )
+            * 10000
+            / datum.fee_basis
+        )
+
+        assert isinstance(datum.pool_specifics, CPPDatum)
+
+    def deposit(
+        self,
+        in_assets: Assets | None = None,
+        out_assets: Assets | None = None,
+    ):
+        merged_assets = in_assets + out_assets
+        if "lovelace" in merged_assets:
+            return Assets(lovelace=4000000) - self.batcher_fee(
+                in_assets=in_assets,
+                out_assets=out_assets,
+            )
+        else:
+            return self._deposit
+
+    def batcher_fee(
+        self,
+        in_assets: Assets | None = None,
+        out_assets: Assets | None = None,
+        extra_assets: Assets | None = None,
+    ):
+        merged_assets = in_assets + out_assets
+        if "lovelace" in merged_assets:
+            if merged_assets["lovelace"] <= 250000000:
+                return Assets(lovelace=850000)
+            elif merged_assets["lovelace"] <= 500000000:
+                return Assets(lovelace=1500000)
+        return Assets(lovelace=2000000)
