@@ -375,21 +375,21 @@ class WingRidersV2OrderDatum(OrderDatum):
                 return Assets(
                     root={asset_b: self.action.minimum_receive},
                 )
-        elif isinstance(self.detail, WithdrawLiquidityAction):
+        elif isinstance(self.action, WithdrawLiquidityAction):
             return Assets(
                 {
-                    self.config.assets.asset_a.assets.unit(): self.detail.min_amount_a,
-                    self.config.assets.asset_b.assets.unit(): self.detail.min_amount_b,
+                    self.config.assets.asset_a.assets.unit(): self.action.min_amount_a,
+                    self.config.assets.asset_b.assets.unit(): self.action.min_amount_b,
                 },
             )
 
     def order_type(self) -> OrderType | None:
         order_type = None
-        if isinstance(self.detail, SwapAction):
+        if isinstance(self.action, SwapAction):
             order_type = OrderType.swap
-        elif isinstance(self.detail, AddLiquidityAction):
+        elif isinstance(self.action, AddLiquidityAction):
             order_type = OrderType.deposit
-        elif isinstance(self.detail, WithdrawLiquidityAction):
+        elif isinstance(self.action, WithdrawLiquidityAction):
             order_type = OrderType.withdraw
 
         return order_type
