@@ -351,8 +351,8 @@ class WingRidersV2OrderDatum(OrderDatum):
             action=SwapAction(
                 swap_direction=direction, minimum_receive=out_assets.quantity()
             ),
-            a_scale=0,
-            b_scale=0,
+            a_scale=1,
+            b_scale=1,
         )
 
     def address_source(self) -> Address:
@@ -753,3 +753,21 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             elif merged_assets["lovelace"] <= 500000000:
                 return Assets(lovelace=1500000)
         return Assets(lovelace=2000000)
+
+
+class WingRidersV2SSPState(AbstractStableSwapPoolState, WingRidersV2CPPState):
+    """WingRiders SSP state."""
+
+    fee: int = 6
+    _batcher = Assets(lovelace=2000000)
+    _deposit = Assets(lovelace=2000000)
+    _stake_address = Address.from_primitive(
+        "addr1wy3ksr4xwqd4dukp9tnemzheflfk75ym0vq8q2w8ecg5ssqmfdjaz",
+    )
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        return PoolSelector(
+            addresses=["addr1wx2x4c3ggv8jl3j24ze6ewgsacn7nvly0250jf06cfurfggd7zqtl"],
+            assets=cls.dex_policy(),
+        )
