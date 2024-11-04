@@ -321,6 +321,8 @@ class WingRidersV2OrderDatum(OrderDatum):
         deposit: Assets,
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
+        a_scale: int = 1,
+        b_scale: int = 1,
     ):
         """Create a WingRiders order datum."""
         timeout = int(((datetime.utcnow() + timedelta(days=360)).timestamp()) * 1000)
@@ -351,8 +353,8 @@ class WingRidersV2OrderDatum(OrderDatum):
             action=SwapAction(
                 swap_direction=direction, minimum_receive=out_assets.quantity()
             ),
-            a_scale=1,
-            b_scale=1,
+            a_scale=a_scale,
+            b_scale=b_scale,
         )
 
     def address_source(self) -> Address:
@@ -437,7 +439,7 @@ class CPPDatum(PlutusData):
 class SSPDatum(PlutusData):
     """WingRiders pool datum."""
 
-    CONSTR_ID = 1
+    CONSTR_ID = 0
 
     parameter_d: int
     scale_a: int
@@ -469,7 +471,7 @@ class WingRidersV2PoolDatum(PoolDatum):
     reserve_treasury_b: int
     project_beneficiary: RawPlutusData
     reserve_beneficiary: RawPlutusData
-    pool_specifics: Union[CPPDatum, SSPDatum]
+    pool_specifics: CPPDatum
 
     def pool_pair(self) -> Assets | None:
         asset_a = (self.asset_a_symbol + self.asset_a_token).hex()
@@ -477,6 +479,13 @@ class WingRidersV2PoolDatum(PoolDatum):
             asset_a = "lovelace"
         asset_b = (self.asset_b_symbol + self.asset_b_token).hex()
         return Assets(root={asset_a: 0, asset_b: 0})
+
+
+@dataclass
+class WingRidersV2SSPoolDatum(WingRidersV2PoolDatum):
+    """WingRiders pool datum."""
+
+    pool_specifics: SSPDatum
 
 
 class WingRidersCPPState(AbstractConstantProductPoolState):
@@ -692,7 +701,7 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
     def pool_datum(self) -> PlutusData:
         """The pool state datum."""
         if self._pool_datum_parsed is None:
-            self._pool_datum_parsed = WingRidersV2PoolDatum.from_cbor(self.datum_cbor)
+            self._pool_datum_parsed = self.pool_datum_class().from_cbor(self.datum_cbor)
         return self._pool_datum_parsed
 
     @classmethod
@@ -723,8 +732,6 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             * 10000
             / datum.fee_basis
         )
-
-        assert isinstance(datum.pool_specifics, CPPDatum)
 
     def deposit(
         self,
@@ -764,10 +771,56 @@ class WingRidersV2SSPState(AbstractStableSwapPoolState, WingRidersV2CPPState):
     _stake_address = Address.from_primitive(
         "addr1wy3ksr4xwqd4dukp9tnemzheflfk75ym0vq8q2w8ecg5ssqmfdjaz",
     )
+    _pool_datum_parsed: WingRidersV2PoolDatum | None = None
+
+    asset_mulitipliers: ClassVar[list[int]] = [1, 1]
 
     @classmethod
     def pool_selector(cls) -> PoolSelector:
         return PoolSelector(
             addresses=["addr1wx2x4c3ggv8jl3j24ze6ewgsacn7nvly0250jf06cfurfggd7zqtl"],
             assets=cls.dex_policy(),
+        )
+
+    @classmethod
+    def pool_datum_class(cls) -> type[WingRidersV2SSPoolDatum]:
+        return WingRidersV2SSPoolDatum
+
+    @classmethod
+    def post_init(cls, values):
+        super().post_init(values)
+
+        datum: WingRidersV2SSPoolDatum = WingRidersV2SSPoolDatum.from_cbor(
+            values["datum_cbor"]
+        )
+
+        cls.asset_mulitipliers = [
+            datum.pool_specifics.scale_a,
+            datum.pool_specifics.scale_b,
+        ]
+
+    def swap_datum(
+        self,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        extra_assets: Assets | None = None,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ) -> PlutusData:
+
+        return self.order_datum_class().create_datum(
+            address_source=address_source,
+            in_assets=in_assets,
+            out_assets=out_assets,
+            batcher_fee=self.batcher_fee(
+                in_assets=in_assets,
+                out_assets=out_assets,
+                extra_assets=extra_assets,
+            ),
+            deposit=self.deposit(in_assets=in_assets, out_assets=out_assets),
+            address_target=address_target,
+            datum_target=datum_target,
+            a_scale=self.asset_mulitipliers[0],
+            b_scale=self.asset_mulitipliers[1],
         )
