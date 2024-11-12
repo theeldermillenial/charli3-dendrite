@@ -199,4 +199,4 @@ poetry run pytest --benchmark-disable -v --slow -n auto
 ```
 
 ## Contributing
-Contributions to Charli3 Dendrite are welcome! Please refer to the [CONTRIBUTING.md]() file for guidelines on how to contribute to the project.
+Contributions to Charli3 Dendrite are welcome! Please refer to the [CONTRIBUTING.md](./CONTRIBUTING.md) file for guidelines on how to contribute to the project.
