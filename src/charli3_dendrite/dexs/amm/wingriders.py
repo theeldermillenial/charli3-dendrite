@@ -808,7 +808,6 @@ class WingRidersV2SSPState(AbstractStableSwapPoolState, WingRidersV2CPPState):
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
     ) -> PlutusData:
-
         return self.order_datum_class().create_datum(
             address_source=address_source,
             in_assets=in_assets,

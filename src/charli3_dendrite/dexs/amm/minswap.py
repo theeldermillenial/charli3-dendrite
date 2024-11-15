@@ -800,6 +800,21 @@ class MinswapDJEDUSDMStablePoolDatum(MinswapStablePoolDatum):
         )
 
 
+@dataclass
+class MinswapiUSDUSDMStablePoolDatum(MinswapStablePoolDatum):
+    """Pool Datum."""
+
+    CONSTR_ID = 0
+
+    def pool_pair(self) -> Assets | None:
+        return Assets(
+            **{
+                "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d": 0,
+                "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344": 0,
+            },
+        )
+
+
 class MinswapCPPState(AbstractConstantProductPoolState):
     """Minswap Constant Product Pool State."""
 
@@ -1116,7 +1131,7 @@ class MinswapDJEDiUSDStableState(AbstractCommonStableSwapPoolState, MinswapCPPSt
 class MinswapDJEDUSDCStableState(MinswapDJEDiUSDStableState):
     """Minswap DJED/USDC Stable State."""
 
-    asset_mulitipliers: list[int] = [1, 100]
+    asset_mulitipliers: ClassVar[list[int]] = [1, 100]
 
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
@@ -1168,4 +1183,31 @@ class MinswapDJEDUSDMStableState(MinswapDJEDiUSDStableState):
     def pool_policy(cls) -> list[str]:
         return [
             "07b0869ed7488657e24ac9b27b3f0fb4f76757f444197b2a38a15c3c444a45442d5553444d2d534c50",
+        ]
+
+
+class MinswapiUSDUSDMStableState(MinswapDJEDiUSDStableState):
+    _stake_address: ClassVar[Address] = [
+        Address.from_primitive(
+            "addr1wxr9ppdymqgw6g0hvaaa7wc6j0smwh730ujx6lczgdynehsguav8d",
+        ),
+    ]
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        return PoolSelector(
+            addresses=["addr1w9520fyp6g3pjwd0ymfy4v2xka54ek6ulv4h8vce54zfyfcm2m0sm"],
+            assets=[
+                "96402c6f5e7a04f16b4d6f500ab039ff5eac5d0226d4f88bf5523ce85553444d2d695553442d534c50",
+            ],
+        )
+
+    @classmethod
+    def pool_datum_class(self) -> type[MinswapiUSDUSDMStablePoolDatum]:
+        return MinswapiUSDUSDMStablePoolDatum
+
+    @classmethod
+    def pool_policy(cls) -> list[str]:
+        return [
+            "96402c6f5e7a04f16b4d6f500ab039ff5eac5d0226d4f88bf5523ce85553444d2d695553442d534c50",
         ]
