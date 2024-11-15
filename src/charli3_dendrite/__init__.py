@@ -3,6 +3,7 @@ from charli3_dendrite.dexs.amm.minswap import MinswapCPPState
 from charli3_dendrite.dexs.amm.minswap import MinswapDJEDiUSDStableState
 from charli3_dendrite.dexs.amm.minswap import MinswapDJEDUSDCStableState
 from charli3_dendrite.dexs.amm.minswap import MinswapDJEDUSDMStableState
+from charli3_dendrite.dexs.amm.minswap import MinswapiUSDUSDMStableState
 from charli3_dendrite.dexs.amm.minswap import MinswapV2CPPState
 from charli3_dendrite.dexs.amm.muesli import MuesliSwapCLPState
 from charli3_dendrite.dexs.amm.muesli import MuesliSwapCPPState
