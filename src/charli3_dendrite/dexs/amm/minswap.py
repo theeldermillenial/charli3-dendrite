@@ -1189,7 +1189,7 @@ class MinswapDJEDUSDMStableState(MinswapDJEDiUSDStableState):
 class MinswapiUSDUSDMStableState(MinswapDJEDiUSDStableState):
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
-            "addr1wxr9ppdymqgw6g0hvaaa7wc6j0smwh730ujx6lczgdynehsguav8d",
+            "addr1wxtv9k2lcum5pmcc4wu44a5tufulszahz84knff87wcawycez9lug",
         ),
     ]
 
