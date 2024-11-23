@@ -8,6 +8,7 @@ from typing import ClassVar
 from typing import Union
 
 from pycardano import Address
+from pycardano import DeserializeException
 from pycardano import PlutusData
 from pycardano import RawPlutusData
 
@@ -693,6 +694,9 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
                 else:
                     values["assets"]["lovelace"] = values["assets"].pop("lovelace")
             values["assets"] = Assets.model_validate(values["assets"])
+
+            cls.post_init(values)
+
             return True
         else:
             return False
@@ -709,9 +713,15 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
         super().post_init(values)
 
         assets = values["assets"]
-        datum: WingRidersV2PoolDatum = WingRidersV2PoolDatum.from_cbor(
-            values["datum_cbor"]
-        )
+
+        try:
+            datum = WingRidersV2SSPoolDatum.from_cbor(values["datum_cbor"])
+            if not issubclass(cls, WingRidersV2SSPState):
+                raise NotAPoolError("Invalid Datum")
+        except DeserializeException:
+            if issubclass(cls, WingRidersV2SSPState):
+                raise NotAPoolError("Invalid Datum")
+            datum = WingRidersV2PoolDatum.from_cbor(values["datum_cbor"])
 
         if len(assets) == 2:
             assets.root[assets.unit(0)] -= 3000000
