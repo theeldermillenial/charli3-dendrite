@@ -10,7 +10,7 @@ from typing import Union
 from pycardano import Address
 from pycardano import DeserializeException
 from pycardano import PlutusData
-from pycardano import RawPlutusData
+from pycardano.plutus import RawDatum
 
 from charli3_dendrite.dataclasses.datums import AssetClass
 from charli3_dendrite.dataclasses.datums import OrderDatum
@@ -21,7 +21,6 @@ from charli3_dendrite.dataclasses.models import OrderType
 from charli3_dendrite.dataclasses.models import PoolSelector
 from charli3_dendrite.dexs.amm.amm_types import AbstractConstantProductPoolState
 from charli3_dendrite.dexs.amm.amm_types import AbstractStableSwapPoolState
-from charli3_dendrite.dexs.amm.vyfi import Deposit
 from charli3_dendrite.dexs.core.errors import NotAPoolError
 
 
@@ -295,20 +294,40 @@ class WithdrawLiquidityAction(PlutusData):
 
 
 @dataclass
+class WithdrawProjectAction(PlutusData):
+    """Unknown action."""
+
+    CONSTR_ID = 3
+
+
+@dataclass
+class WithdrawProtocolAction(PlutusData):
+    """Unknown action."""
+
+    CONSTR_ID = 4
+
+
+@dataclass
 class WingRidersV2OrderDatum(OrderDatum):
     """WingRiders order datum."""
 
     oil: int
     beneficiary: PlutusFullAddress
     owner_address: PlutusFullAddress
-    compensation_datum: bytes
+    compensation_datum: Union[bytes, list, RawDatum]
     compensation_datum_type: Union[NoDatum, HashDatum, InlineDatum]
     deadline: int
     asset_a_symbol: bytes
     asset_a_token: bytes
     asset_b_symbol: bytes
     asset_b_token: bytes
-    action: Union[SwapAction, AddLiquidityAction, WithdrawLiquidityAction]
+    action: Union[
+        SwapAction,
+        AddLiquidityAction,
+        WithdrawLiquidityAction,
+        WithdrawProjectAction,
+        WithdrawProtocolAction,
+    ]
     a_scale: int
     b_scale: int
 
@@ -470,8 +489,8 @@ class WingRidersV2PoolDatum(PoolDatum):
     project_treasury_b: int
     reserve_treasury_a: int
     reserve_treasury_b: int
-    project_beneficiary: RawPlutusData
-    reserve_beneficiary: RawPlutusData
+    project_beneficiary: RawDatum
+    reserve_beneficiary: RawDatum
     pool_specifics: CPPDatum
 
     def pool_pair(self) -> Assets | None:
