@@ -737,7 +737,7 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             datum = WingRidersV2SSPoolDatum.from_cbor(values["datum_cbor"])
             if not issubclass(cls, WingRidersV2SSPState):
                 raise NotAPoolError("Invalid Datum")
-        except DeserializeException:
+        except TypeError:
             if issubclass(cls, WingRidersV2SSPState):
                 raise NotAPoolError("Invalid Datum")
             datum = WingRidersV2PoolDatum.from_cbor(values["datum_cbor"])
