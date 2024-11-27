@@ -7,10 +7,10 @@ from typing import Union
 
 from pycardano import Address
 from pycardano import PlutusData
+from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
 from pycardano import Redeemer
 from pycardano import ScriptHash
-from pycardano import Transaction
 from pycardano import TransactionBuilder
 from pycardano import TransactionId
 from pycardano import TransactionInput
@@ -132,6 +132,11 @@ class SplashBaseState(AbstractPairState):
     @classmethod
     def order_datum_class(cls):
         raise NotImplementedError("Splash limit orders are not yet supported.")
+
+    @classmethod
+    def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
+        """Returns default script class of type PlutusV1Script or PlutusV2Script."""
+        return PlutusV2Script
 
 
 class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
