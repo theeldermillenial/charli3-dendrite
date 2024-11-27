@@ -8,8 +8,9 @@ from typing import ClassVar
 from typing import Union
 
 from pycardano import Address
-from pycardano import DeserializeException
 from pycardano import PlutusData
+from pycardano import PlutusV1Script
+from pycardano import PlutusV2Script
 from pycardano.plutus import RawDatum
 
 from charli3_dendrite.dataclasses.datums import AssetClass
@@ -698,6 +699,11 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
     @classmethod
     def dex_policy(cls) -> list[str]:
         return ["6fdc63a1d71dc2c65502b79baae7fb543185702b12c3c5fb639ed7374c"]
+
+    @classmethod
+    def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
+        """Returns default script class of type PlutusV1Script or PlutusV2Script."""
+        return PlutusV2Script
 
     @classmethod
     def skip_init(cls, values) -> bool:
