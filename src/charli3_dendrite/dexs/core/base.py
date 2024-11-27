@@ -9,6 +9,7 @@ from pycardano import PlutusData
 from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
 from pycardano import Redeemer
+from pycardano import TransactionBuilder
 from pycardano import TransactionOutput
 from pycardano import UTxO
 
@@ -144,10 +145,11 @@ class AbstractPairState(DendriteBaseModel, ABC):
         address_source: Address,
         in_assets: Assets,
         out_assets: Assets,
+        tx_builder: TransactionBuilder | None = None,
         extra_assets: Assets | None = None,
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
-    ) -> TransactionOutput:
+    ) -> tuple[TransactionOutput | None, PlutusData]:
         """Constructs the transaction output for a swap."""
         raise NotImplementedError
 

@@ -1,5 +1,5 @@
 """Module providing types and state classes for AMM pools."""
-
+import math
 from typing import ClassVar
 
 from charli3_dendrite.dataclasses.models import Assets
@@ -178,7 +178,7 @@ class AbstractStableSwapPoolState(AbstractPoolState):
             if abs(d - d_prev) < 1:
                 break
 
-        return d
+        return math.ceil(d)
 
     def _get_y(
         self,
@@ -232,7 +232,7 @@ class AbstractStableSwapPoolState(AbstractPoolState):
         out /= out_multiplier
         out_assets = Assets(**{out_unit: int(out)})
         if not precise:
-            out_assets.root[out_unit] = int(out)
+            out_assets.root[out_unit] = out
 
         return out_assets
 
@@ -296,7 +296,7 @@ class AbstractStableSwapPoolState(AbstractPoolState):
                 out_asset.quantity() * (10000 - volume_fee) / 10000,
             )
         if precise:
-            out_asset.root[out_asset.unit()] = int(out_asset.quantity())
+            out_asset.root[out_asset.unit()] = out_asset.quantity()
 
         return out_asset, 0
 
