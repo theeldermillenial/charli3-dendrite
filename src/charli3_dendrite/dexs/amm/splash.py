@@ -9,6 +9,7 @@ from pycardano import Address
 from pycardano import PlutusData
 from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
+from pycardano.plutus import RawDatum
 from pycardano import Redeemer
 from pycardano import ScriptHash
 from pycardano import TransactionBuilder
@@ -19,6 +20,9 @@ from pycardano import UTxO
 
 from charli3_dendrite.backend import get_backend
 from charli3_dendrite.dataclasses.datums import AssetClass
+from charli3_dendrite.dataclasses.datums import OrderDatum
+from charli3_dendrite.dataclasses.datums import OrderType
+from charli3_dendrite.dataclasses.datums import PlutusFullAddress
 from charli3_dendrite.dataclasses.datums import PoolDatum
 from charli3_dendrite.dataclasses.models import PoolSelector
 from charli3_dendrite.dexs.core.base import AbstractPairState
@@ -37,6 +41,47 @@ class BoolFalse(PlutusData):
 @dataclass
 class BoolTrue(PlutusData):
     CONSTR_ID = 1
+
+
+@dataclass
+class Rationale(PlutusData):
+    """Rationale for Plutus data."""
+
+    CONSTR_ID = 0
+    numerator: int
+    denominator: int
+
+
+@dataclass
+class SplashOrderDatum(OrderDatum):
+    """Order Datum."""
+
+    CONSTR_ID = 0
+
+    tag: bytes
+    beacon: bytes
+    in_asset: AssetClass
+    tradable_input: int
+    cost_per_ex_step: int
+    min_marginal_output: int
+    output: AssetClass
+    base_price: Rationale
+    fee: int
+    redeemer_address: PlutusFullAddress
+    cancel_pkh: bytes
+    permitted_executors: List[bytes]
+
+    def address_source(self) -> Address:
+        """This method should return the source address associated with the order."""
+        return self.redeemer_address.to_address()
+
+    def requested_amount(self) -> Assets:
+        """This method should return the amount requested in the order."""
+        return Assets(root={self.in_asset.assets.unit(): self.min_marginal_output})
+
+    def order_type(self) -> OrderType:
+        """This method should return the type of the order."""
+        return OrderType.swap
 
 
 @dataclass
@@ -131,7 +176,7 @@ class SplashBaseState(AbstractPairState):
 
     @classmethod
     def order_datum_class(cls):
-        raise NotImplementedError("Splash limit orders are not yet supported.")
+        return SplashOrderDatum
 
     @classmethod
     def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
