@@ -266,6 +266,10 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
 
         values["fee"] = (datum.lp_fee_num + datum.protocol_fee_num) / 10
 
+        assets = values["assets"]
+        assets.root[assets.unit(0)] -= datum.protocol_fee_x
+        assets.root[assets.unit(1)] -= datum.protocol_fee_y
+
         cls.asset_mulitipliers = [
             datum.multiplier_x,
             datum.multiplier_y,
