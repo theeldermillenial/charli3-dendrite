@@ -8,6 +8,7 @@ from charli3_dendrite.dexs.amm.minswap import MinswapV2CPPState
 from charli3_dendrite.dexs.amm.muesli import MuesliSwapCLPState
 from charli3_dendrite.dexs.amm.muesli import MuesliSwapCPPState
 from charli3_dendrite.dexs.amm.spectrum import SpectrumCPPState
+from charli3_dendrite.dexs.amm.splash import SplashSSPState
 from charli3_dendrite.dexs.amm.sundae import SundaeSwapCPPState
 from charli3_dendrite.dexs.amm.sundae import SundaeSwapV3CPPState
 from charli3_dendrite.dexs.amm.vyfi import VyFiCPPState
