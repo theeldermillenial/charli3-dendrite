@@ -218,7 +218,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
     @property
     def pool_id(self) -> str:
         """A unique identifier for the pool."""
-        return self.pool_nft.unit()
+        return self.lp_tokens.unit()
 
     @classmethod
     def extract_pool_nft(cls, values: dict[str, Any]) -> Assets | None:
