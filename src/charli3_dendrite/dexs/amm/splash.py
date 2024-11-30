@@ -189,7 +189,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
 
     fee: int = 30
     _batcher = Assets(lovelace=0)
-    _deposit = Assets(lovelace=2000000)
+    _deposit = Assets(lovelace=0)
 
     @classmethod
     def pool_selector(cls) -> PoolSelector:
