@@ -77,7 +77,10 @@ class SplashOrderDatum(OrderDatum):
 
     def requested_amount(self) -> Assets:
         """This method should return the amount requested in the order."""
-        return Assets(root={self.in_asset.assets.unit(): self.min_marginal_output})
+        asset = self.output.assets.unit()
+        if asset == "":
+            asset = "lovelace"
+        return Assets(root={self.output.assets.unit(): self.min_marginal_output})
 
     def order_type(self) -> OrderType:
         """This method should return the type of the order."""
@@ -218,7 +221,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
     @property
     def pool_id(self) -> str:
         """A unique identifier for the pool."""
-        return self.lp_tokens.unit()
+        return self.pool_nft.unit()
 
     @classmethod
     def extract_pool_nft(cls, values: dict[str, Any]) -> Assets | None:
