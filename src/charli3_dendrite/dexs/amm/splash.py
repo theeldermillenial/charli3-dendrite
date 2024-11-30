@@ -323,6 +323,9 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
             datum.multiplier_y,
         ]
 
+        # Verify pool is active
+        values["inactive"] = assets.quantity() < 100000000
+
     def get_amount_out(
         self, asset: Assets, precise: bool = False, fee_on_input: bool = False
     ) -> tuple[Assets, float]:
