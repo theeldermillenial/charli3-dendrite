@@ -55,7 +55,7 @@ logger = logging.getLogger("cardem.api.dataclasses.axo")
 
 load_dotenv()
 
-AXO_API_KEY = os.environ["AXO_API_KEY"]
+AXO_API_KEY = os.environ.get("AXO_API_KEY", None)
 
 
 @dataclass
