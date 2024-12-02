@@ -1,6 +1,5 @@
 """WingRiders DEX Module."""
 
-from ast import With
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -372,7 +371,8 @@ class WingRidersV2OrderDatum(OrderDatum):
             asset_b_symbol=bytes.fromhex(merged.unit(1)[:56]),
             asset_b_token=bytes.fromhex(merged.unit(1)[56:]),
             action=SwapAction(
-                swap_direction=direction, minimum_receive=out_assets.quantity()
+                swap_direction=direction,
+                minimum_receive=out_assets.quantity(),
             ),
             a_scale=a_scale,
             b_scale=b_scale,
@@ -386,7 +386,7 @@ class WingRidersV2OrderDatum(OrderDatum):
             return Assets({"lp": self.action.minimum_receive})
         elif isinstance(self.action, SwapAction):
             if isinstance(self.action.swap_direction, BtoA):
-                if self.asset_a_symbol == "":
+                if self.asset_a_symbol.hex() == "":
                     asset_a = "lovelace"
                 else:
                     asset_a = (self.asset_a_symbol + self.asset_a_token).hex()
@@ -765,7 +765,7 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
                 + datum.project_fee_in_basis
             )
             * 10000
-            / datum.fee_basis
+            / datum.fee_basis,
         )
 
     def deposit(
@@ -826,7 +826,7 @@ class WingRidersV2SSPState(AbstractStableSwapPoolState, WingRidersV2CPPState):
         super().post_init(values)
 
         datum: WingRidersV2SSPoolDatum = WingRidersV2SSPoolDatum.from_cbor(
-            values["datum_cbor"]
+            values["datum_cbor"],
         )
 
         cls.asset_mulitipliers = [

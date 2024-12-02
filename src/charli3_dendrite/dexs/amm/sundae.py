@@ -354,13 +354,10 @@ class SundaeV3OrderDatum(OrderDatum):
 
     def requested_amount(self) -> Assets:
         if isinstance(self.swap, SwapV3Config):
-            return Assets(
-                {
-                    (
-                        self.swap.out_value[0] + self.swap.out_value[1]
-                    ).hex(): self.swap.out_value[2],
-                },
-            )
+            asset = (self.swap.out_value[0] + self.swap.out_value[1]).hex()
+            if asset == "":
+                asset = "lovelace"
+            return Assets({asset: self.swap.out_value[2]})
         else:
             return Assets({})
 
