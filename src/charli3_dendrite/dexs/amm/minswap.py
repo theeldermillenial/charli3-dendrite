@@ -946,6 +946,10 @@ class MinswapV2CPPState(AbstractConstantProductPoolState):
         return MinswapV2OrderDatum
 
     @classmethod
+    def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
+        return PlutusV2Script
+
+    @classmethod
     def script_class(self) -> type[PlutusV2Script]:
         return PlutusV2Script
 
