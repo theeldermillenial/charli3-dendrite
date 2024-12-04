@@ -254,12 +254,12 @@ class GeniusYieldOrderState(AbstractOrderState):
 
     @property
     def mint_reference_utxo(self) -> UTxO | None:
-        order_info = get_pool_in_tx(
+        order_info = get_backend().get_pool_in_tx(
             self.tx_hash,
             assets=[self.dex_nft.unit()],
             **self.pool_selector().model_dump(exclude_defaults=True),
         )
-        script = get_script_from_address(
+        script = get_backend().get_script_from_address(
             Address(
                 payment_part=ScriptHash(
                     payload=bytes.fromhex(self.dex_nft.unit()[:56]),
