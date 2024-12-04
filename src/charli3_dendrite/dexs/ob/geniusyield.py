@@ -281,7 +281,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
     @property
     def settings_datum(self) -> GeniusYieldSettings:
-        script = get_datum_from_address(
+        script = get_backend().get_datum_from_address(
             address=Address.decode(
                 "addr1wxcqkdhe7qcfkqcnhlvepe7zmevdtsttv8vdfqlxrztaq2gge58rd",
             ),
