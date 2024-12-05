@@ -7,7 +7,6 @@ from datetime import datetime
 from threading import Lock
 
 import psycopg_pool  # type: ignore
-from anyio import value
 from dotenv import load_dotenv  # type: ignore
 from psycopg.rows import dict_row  # type: ignore
 from psycopg_pool import PoolTimeout
