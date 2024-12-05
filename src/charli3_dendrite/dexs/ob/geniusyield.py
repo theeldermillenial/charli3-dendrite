@@ -507,6 +507,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
         # get_amount_out is correct, this corrects nominal errors
         amount_out, _ = self.get_amount_out(asset=amount_in)
+        delta = max(1, self.price[0] // self.price[1])
         for _ in range(100):
             while (
                 amount_out.quantity() < asset.quantity()
