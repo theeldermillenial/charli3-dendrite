@@ -507,21 +507,38 @@ class GeniusYieldOrderState(AbstractOrderState):
 
         # get_amount_out is correct, this corrects nominal errors
         amount_out, _ = self.get_amount_out(asset=amount_in)
-        while (
-            amount_out.quantity() < asset.quantity()
-            and amount_out.quantity() < self.available.quantity()
-        ):
-            amount_in.root[self.in_unit] += 1
-            amount_out, _ = self.get_amount_out(asset=amount_in)
+        for _ in range(100):
+            while (
+                amount_out.quantity() < asset.quantity()
+                and amount_out.quantity() < self.available.quantity()
+            ):
+                amount_in.root[self.in_unit] += delta
+                amount_out, _ = self.get_amount_out(asset=amount_in)
+            if delta > 1:
+                amount_in.root[self.in_unit] -= delta
+                amount_out, _ = self.get_amount_out(asset=amount_in)
+            if delta == 1:
+                break
+            delta = max(1, delta // 2)
 
         temp_amount_in = Assets.model_validate(amount_in.model_dump())
         amount_out, _ = self.get_amount_out(asset=amount_in)
         temp_amount_in.root[temp_amount_in.unit()] -= 1
         temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
-        while temp_amount_out.quantity() == amount_out.quantity():
-            amount_in.root[self.in_unit] += temp_amount_out.quantity()
-            temp_amount_in.root[temp_amount_in.unit()] -= 1
-            temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
+        delta = max(1, self.price[1] // self.price[0])
+        for _ in range(100):
+            while temp_amount_out.quantity() == amount_out.quantity():
+                amount_in.root[self.in_unit] = temp_amount_in.root[
+                    temp_amount_in.unit()
+                ]
+                temp_amount_in.root[temp_amount_in.unit()] -= delta
+                temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
+            if delta > 1:
+                temp_amount_in.root[temp_amount_in.unit()] += delta
+                temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
+            if delta == 1:
+                break
+            delta = max(1, delta // 2)
 
         return amount_in, slippage
 

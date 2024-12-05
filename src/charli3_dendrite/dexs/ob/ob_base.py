@@ -58,9 +58,7 @@ class AbstractOrderState(AbstractPairState):
 
         num, denom = self.price
         out_assets = Assets(**{self.out_unit: 0})
-        in_quantity = asset.quantity() - ceil(
-            asset.quantity() * self.volume_fee / 10000,
-        )
+        in_quantity = asset.quantity() - (asset.quantity() * self.volume_fee / 10000)
         out_assets.root[self.out_unit] = min(
             ceil(in_quantity * denom / num),
             self.available.quantity(),
