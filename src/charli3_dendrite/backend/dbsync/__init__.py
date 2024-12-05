@@ -37,6 +37,7 @@ class DbsyncBackend(AbstractBackend):
         self.lock = Lock()
 
         self.POOL = None
+        self.ASYNC_POOL = None
         self.DBSYNC_USER = os.environ.get("DBSYNC_USER", None)
         self.DBSYNC_PASS = os.environ.get("DBSYNC_PASS", None)
         self.DBSYNC_HOST = os.environ.get("DBSYNC_HOST", None)
