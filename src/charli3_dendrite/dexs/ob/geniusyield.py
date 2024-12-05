@@ -3,6 +3,7 @@
 import time
 from dataclasses import dataclass
 from dataclasses import field
+from functools import lru_cache
 from math import ceil
 from typing import Dict
 from typing import List
@@ -477,6 +478,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
         return values
 
+    @lru_cache(64)
     def get_amount_out(self, asset: Assets, precise=True) -> tuple[Assets, float]:
         amount_out, slippage = super().get_amount_out(asset=asset, precise=precise)
 
@@ -497,6 +499,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
         return amount_out, slippage
 
+    @lru_cache(64)
     def get_amount_in(self, asset: Assets, precise=False) -> tuple[Assets, float]:
         fee = self.fee
         self.fee *= 1.003
