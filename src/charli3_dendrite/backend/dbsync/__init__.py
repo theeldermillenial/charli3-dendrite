@@ -97,7 +97,7 @@ class DbsyncBackend(AbstractBackend):
             psycopg_pool.ConnectionPool: A connection pool for database operations.
         """
         with self.lock:
-            if self.POOL is None:
+            if self.ASYNC_POOL is None:
                 conninfo = (
                     f"host={self.DBSYNC_HOST} "
                     + f"port={self.DBSYNC_PORT} "
@@ -105,7 +105,7 @@ class DbsyncBackend(AbstractBackend):
                     + f"user={self.DBSYNC_USER} "
                     + f"password={self.DBSYNC_PASS}"
                 )
-                self.POOL = psycopg_pool.AsyncConnectionPool(
+                self.ASYNC_POOL = psycopg_pool.AsyncConnectionPool(
                     conninfo=conninfo,
                     open=False,
                     min_size=1,
@@ -116,11 +116,11 @@ class DbsyncBackend(AbstractBackend):
                     check=psycopg_pool.AsyncConnectionPool.check_connection,
                 )
                 try:
-                    if self.POOL is None:
+                    if self.ASYNC_POOL is None:
                         raise ValueError("Connection pool has not been initialized.")
 
-                    await self.POOL.open()
-                    await self.POOL.wait(
+                    await self.ASYNC_POOL.open()
+                    await self.ASYNC_POOL.wait(
                         timeout=60.0,
                     )  # Increased from 30 to 60 seconds
                 except PoolTimeout as e:
@@ -136,7 +136,7 @@ class DbsyncBackend(AbstractBackend):
                 except Exception as e:
                     logging.error(f"Error initializing database connection pool: {e}")
                     raise
-        return self.POOL
+        return self.ASYNC_POOL
 
     def db_query(self, query: str, args: dict | None = None) -> list[dict]:
         """Execute a database query using the connection pool.
