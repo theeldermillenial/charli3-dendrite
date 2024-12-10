@@ -137,6 +137,28 @@ class SplashCPPPoolDatum(PoolDatum):
 
 
 @dataclass
+class SplashCPPBidirPoolDatum(PoolDatum):
+    """The pool datum for the Spectrum DEX."""
+
+    pool_nft: AssetClass
+    asset_x: AssetClass
+    asset_y: AssetClass
+    lp_token: AssetClass
+    pool_fee_x: int
+    pool_fee_y: int
+    treasury_fee: int
+    treasury_x: int
+    treasury_y: int
+    dao_policy: RawDatum
+    lq_bound: int
+    treasury_address: bytes
+
+    def pool_pair(self) -> Assets | None:
+        """Returns the pool pair assets if available."""
+        return self.asset_x.assets + self.asset_y.assets
+
+
+@dataclass
 class SwapAction(PlutusData):
     CONSTR_ID = 0
 
@@ -545,7 +567,8 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
 
         # Create the pool input UTxO
         # TODO: add protocol and
-        pool_datum: SplashCPPPoolDatum = SplashCPPPoolDatum.from_cbor(
+        pool_datum_class = self.pool_datum_class()
+        pool_datum = pool_datum_class.from_cbor(
             self.pool_datum.to_cbor(),
         )
         assets = self.assets + self.pool_nft + self.lp_tokens
@@ -567,7 +590,7 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         new_assets = Assets.model_validate(assets.model_dump())
         new_assets.root[in_assets.unit()] += in_assets.quantity()
         new_assets.root[out_assets.unit()] += -out_assets.quantity()
-        new_pool_datum: SplashCPPPoolDatum = SplashCPPPoolDatum.from_cbor(
+        new_pool_datum = pool_datum_class.from_cbor(
             self.pool_datum.to_cbor(),
         )
 
@@ -599,3 +622,43 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         tx_builder.add_script_input(utxo=input_utxo, script=script, redeemer=redeemer)
 
         return txo, self.pool_datum
+
+
+class SplashCPPBidirState(SplashCPPState):
+    """Splash StableSwap Pool State."""
+
+    fee: int = [30, 30]
+    _batcher = Assets(lovelace=0)
+    _deposit = Assets(lovelace=0)
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        return PoolSelector(
+            addresses=[
+                "addr1w95q755yrsr0xt8vmn007tpqee4hps49yjdef5dzknhl99qntsmh0",
+            ],
+        )
+
+    @classmethod
+    def pool_datum_class(self) -> type[SplashCPPBidirPoolDatum]:
+        return SplashCPPBidirPoolDatum
+
+    @classmethod
+    def post_init(cls, values):
+        super().post_init(values)
+
+        datum: SplashCPPBidirPoolDatum = SplashCPPBidirPoolDatum.from_cbor(
+            values["datum_cbor"],
+        )
+
+        values["fee"] = [
+            (100000 - datum.pool_fee_x + datum.treasury_fee) // 10,
+            (100000 - datum.pool_fee_y + datum.treasury_fee) // 10,
+        ]
+
+        assets = values["assets"]
+        assets.root[assets.unit(0)] -= datum.treasury_x
+        assets.root[assets.unit(1)] -= datum.treasury_y
+
+        # Verify pool is active
+        values["inactive"] = assets.quantity() < 100000000
