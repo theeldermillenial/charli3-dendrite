@@ -6,6 +6,7 @@ from typing import List
 from typing import Union
 
 from pycardano import Address
+from pycardano import DeserializeException
 from pycardano import PlutusData
 from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
@@ -312,9 +313,13 @@ class SplashBaseState(AbstractPairState):
     def skip_init(cls, values) -> bool:
         if "pool_nft" in values and "lp_tokens" in values:
             order_class = cls.order_datum_class()
-            datum: SplashSSPPoolDatum | SplashCPPPoolDatum = order_class.from_cbor(
-                values["datum_cbor"],
-            )
+            try:
+                datum: SplashSSPPoolDatum | SplashCPPPoolDatum = order_class.from_cbor(
+                    values["datum_cbor"],
+                )
+            except DeserializeException:
+                raise NotAPoolError("Invalid DEX NFT")
+
             if datum.pool_nft.assets.unit() not in values["dex_nft"]:
                 raise NotAPoolError("Invalid DEX NFT")
             if datum.lp_token.assets.unit() not in values["dex_nft"]:
