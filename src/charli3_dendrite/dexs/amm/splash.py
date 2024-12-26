@@ -312,18 +312,18 @@ class SplashBaseState(AbstractPairState):
     @classmethod
     def skip_init(cls, values) -> bool:
         if "pool_nft" in values and "lp_tokens" in values:
-            order_class = cls.order_datum_class()
+            order_class = cls.pool_datum_class()
             try:
                 datum: SplashSSPPoolDatum | SplashCPPPoolDatum = order_class.from_cbor(
                     values["datum_cbor"],
                 )
             except DeserializeException:
-                raise NotAPoolError("Invalid DEX NFT")
+                raise NotAPoolError("Invalid datum")
 
-            if datum.pool_nft.assets.unit() not in values["dex_nft"]:
-                raise NotAPoolError("Invalid DEX NFT")
-            if datum.lp_token.assets.unit() not in values["dex_nft"]:
-                raise NotAPoolError("Invalid DEX NFT")
+            if datum.pool_nft.assets.unit() not in values["pool_nft"]:
+                raise NotAPoolError("Invalid pool NFT")
+            if datum.lp_token.assets.unit() not in values["lp_tokens"]:
+                raise NotAPoolError("Invalid LP tokens")
 
             values["assets"] = Assets.model_validate(values["assets"])
             return True
