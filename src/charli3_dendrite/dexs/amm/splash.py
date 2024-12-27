@@ -180,23 +180,17 @@ class SSPoolRedeemer(PlutusData):
     action: Union[SwapAction, PDAOAction]
 
     def set_idx(self, tx_builder: TransactionBuilder):
-        """Set the pool in and out indexes."""
-        contract_hash = Address.decode(
-            SplashSSPState.pool_selector().addresses[0],
-        ).payment_part.payload
+        """Set the pool in and out indexes.
 
-        # Set the input pool index
-        pool_index = None
-        sorted_inputs = sorted(
-            tx_builder.inputs.copy(),
-            key=lambda i: i.input.transaction_id.payload.hex(),
-        )
-        for i, utxo in enumerate(sorted_inputs):
-            if utxo.output.address.payment_part.payload == contract_hash:
-                pool_index = i
-        assert pool_index is not None
-        self.pool_in_idx = pool_index
+        It is necessary to make sure that redeemer indices are already set before
+        calling this function.
+        """
+        # Set the input index
+        for key, value in tx_builder.redeemers().items():
+            if value.data == self:
+                self.self_index = key.index
 
+        # Set the output index
         for i, txo in enumerate(tx_builder.outputs):
             if txo.address.payment_part.payload == contract_hash:
                 pool_index = i
@@ -212,36 +206,15 @@ class CPPoolRedeemer(PlutusData):
     self_index: int
 
     def set_idx(self, tx_builder: TransactionBuilder):
-        """Set the pool in and out indexes."""
-        contract_hashes = [
-            Address.decode(a).payment_part.payload
-            for a in SplashCPPState.pool_selector().addresses
-        ]
+        """Set the pool in and out indexes.
 
+        It is necessary to make sure that redeemer indices are already set before
+        calling this function.
+        """
         # Find other CPPoolRedeemers that are already set
-        skip_index = []
-        for redeemer in tx_builder.redeemers().values():
-            if (
-                isinstance(redeemer.data, CPPoolRedeemer)
-                and redeemer.data.self_index != -1
-            ):
-                skip_index.append(redeemer.data.self_index)
-
-        # Set the input pool index
-        pool_index = None
-        sorted_inputs = sorted(
-            tx_builder.inputs.copy(),
-            key=lambda i: i.input.transaction_id.payload.hex(),
-        )
-        for i, utxo in enumerate(sorted_inputs):
-            if (
-                utxo.output.address.payment_part.payload in contract_hashes
-                and i not in skip_index
-            ):
-                pool_index = i
-                break
-        assert pool_index is not None
-        self.self_index = pool_index
+        for key, value in tx_builder.redeemers().items():
+            if value.data == self:
+                self.self_index = key.index
 
 
 class SplashBaseState(AbstractPairState):
