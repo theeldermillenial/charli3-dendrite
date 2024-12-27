@@ -213,12 +213,19 @@ class CPPoolRedeemer(PlutusData):
 
     def set_idx(self, tx_builder: TransactionBuilder):
         """Set the pool in and out indexes."""
-        # TODO: There is going go be a bug here for cases where there are multiple pools
-
         contract_hashes = [
             Address.decode(a).payment_part.payload
             for a in SplashCPPState.pool_selector().addresses
         ]
+
+        # Find other CPPoolRedeemers that are already set
+        skip_index = []
+        for redeemer in tx_builder.redeemers().values():
+            if (
+                isinstance(redeemer.data, CPPoolRedeemer)
+                and redeemer.data.self_index != -1
+            ):
+                skip_index.append(redeemer.data.self_index)
 
         # Set the input pool index
         pool_index = None
@@ -227,8 +234,12 @@ class CPPoolRedeemer(PlutusData):
             key=lambda i: i.input.transaction_id.payload.hex(),
         )
         for i, utxo in enumerate(sorted_inputs):
-            if utxo.output.address.payment_part.payload in contract_hashes:
+            if (
+                utxo.output.address.payment_part.payload in contract_hashes
+                and i not in skip_index
+            ):
                 pool_index = i
+                break
         assert pool_index is not None
         self.self_index = pool_index
 
@@ -373,6 +384,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
     """Splash StableSwap Pool State."""
 
     fee: int = 30
+    fee_basis: int = 100000
     _batcher = Assets(lovelace=0)
     _deposit = Assets(lovelace=0)
 
@@ -402,7 +414,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
 
         datum: SplashSSPPoolDatum = SplashSSPPoolDatum.from_cbor(values["datum_cbor"])
 
-        values["fee"] = (datum.lp_fee_num + datum.protocol_fee_num) // 10
+        values["fee"] = datum.lp_fee_num + datum.protocol_fee_num
 
         assets = values["assets"]
         assets.root[assets.unit(0)] -= datum.protocol_fee_x
@@ -414,6 +426,8 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         ]
 
         # Verify pool is active
+        # TODO: should be updated to match the validator:
+        # https://github.com/splashprotocol/splash-core/blob/main/validators/stable_pool/pool.ak
         values["inactive"] = assets.quantity() < 100000000
 
     def get_amount_out(
@@ -507,6 +521,7 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
     """Splash StableSwap Pool State."""
 
     fee: int = 30
+    fee_basis: int = 100000
     _batcher = Assets(lovelace=0)
     _deposit = Assets(lovelace=0)
 
@@ -529,13 +544,15 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
 
         datum: SplashCPPPoolDatum = SplashCPPPoolDatum.from_cbor(values["datum_cbor"])
 
-        values["fee"] = (100000 - datum.pool_fee + datum.treasury_fee) // 10
+        values["fee"] = 100000 - datum.pool_fee + datum.treasury_fee
 
         assets = values["assets"]
         assets.root[assets.unit(0)] -= datum.treasury_x
         assets.root[assets.unit(1)] -= datum.treasury_y
 
         # Verify pool is active
+        # TODO: should be updated to match the validator:
+        # https://github.com/splashprotocol/splash-core/blob/9fd951054ac7143de6acf491f36d1073e729ba90/plutarch-validators/WhalePoolsDex/PContracts/PPool.hs#L367
         values["inactive"] = assets.quantity() < 100000000
 
     def get_amount_out(
@@ -603,12 +620,11 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         redeemer = Redeemer(
             CPPoolRedeemer(
                 action=2,
-                self_index=0,
+                self_index=-1,
             ),
         )
 
         # Create the pool input UTxO
-        # TODO: add protocol and
         pool_datum_class = self.pool_datum_class()
         pool_datum = pool_datum_class.from_cbor(
             self.pool_datum.to_cbor(),
