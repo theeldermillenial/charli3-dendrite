@@ -550,25 +550,28 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         dx = asset.quantity()
         dxf = dx * fee
         rx = self.assets[asset.unit()]
-        ry = (
-            self.assets.quantity(1)
-            if asset.unit() == self.assets.unit()
-            else self.assets.quantity(0)
-        )
+
+        if asset.unit() == self.assets.unit():
+            ry = self.assets.quantity(1) + pool_datum.treasury_y
+            rx += pool_datum.treasury_x
+        else:
+            ry = self.assets.quantity(0) + pool_datum.treasury_x
+            rx += pool_datum.treasury_y
 
         # Check to make sure the output passes invariant, and decrease until it does
-        while True:
+        dy = -amount_out.quantity()
+        dyf = dy * fee
+        try:
+            assert -dy * (rx * 100000 + dxf) <= ry * dxf
+            assert -dx * (ry * 100000 + dyf) <= rx * dyf
+        except AssertionError:
+            amount_out.root[amount_out.unit()] = int(ry * dxf / (rx * 100000 + dxf))
+
             dy = -amount_out.quantity()
             dyf = dy * fee
 
-            try:
-                assert -dy * (rx * 100000 + dxf) <= ry * dxf
-                assert -dx * (ry * 100000 + dyf) <= rx * dyf
-            except AssertionError:
-                amount_out.root[amount_out.unit()] -= 1
-                continue
-
-            break
+            assert -dy * (rx * 100000 + dxf) <= ry * dxf
+            assert -dx * (ry * 100000 + dyf) <= rx * dyf
 
         return amount_out, float
 
@@ -611,8 +614,8 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
             self.pool_datum.to_cbor(),
         )
         assets = self.assets + self.pool_nft + self.lp_tokens
-        assets.root[in_assets.unit()] += pool_datum.treasury_x
-        assets.root[out_assets.unit()] += pool_datum.treasury_y
+        assets.root[self.assets.unit()] += pool_datum.treasury_x
+        assets.root[self.assets.unit(1)] += pool_datum.treasury_y
         input_utxo = UTxO(
             TransactionInput(
                 transaction_id=TransactionId(bytes.fromhex(self.tx_hash)),
