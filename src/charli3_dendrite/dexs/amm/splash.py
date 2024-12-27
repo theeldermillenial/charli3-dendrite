@@ -538,6 +538,40 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         # Verify pool is active
         values["inactive"] = assets.quantity() < 100000000
 
+    def get_amount_out(
+        self,
+        asset: Assets,
+        precise: bool = True,
+    ) -> tuple[Assets, float]:
+        amount_out, float = super().get_amount_out(asset=asset, precise=precise)
+
+        pool_datum = self.pool_datum
+        fee = pool_datum.pool_fee - pool_datum.treasury_fee
+        dx = asset.quantity()
+        dxf = dx * fee
+        rx = self.assets[asset.unit()]
+        ry = (
+            self.assets.quantity(1)
+            if asset.unit() == self.assets.unit()
+            else self.assets.quantity(0)
+        )
+
+        # Check to make sure the output passes invariant, and decrease until it does
+        while True:
+            dy = -amount_out.quantity()
+            dyf = dy * fee
+
+            try:
+                assert -dy * (rx * 100000 + dxf) <= ry * dxf
+                assert -dx * (ry * 100000 + dyf) <= rx * dyf
+            except AssertionError:
+                amount_out.root[amount_out.unit()] -= 1
+                continue
+
+            break
+
+        return amount_out, float
+
     def swap_utxo(
         self,
         address_source: Address,
@@ -609,6 +643,7 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
             )
         else:
             raise ValueError("Invalid input asset")
+
         txo = TransactionOutput(
             address=order_info[0].address,
             amount=asset_to_value(new_assets),
