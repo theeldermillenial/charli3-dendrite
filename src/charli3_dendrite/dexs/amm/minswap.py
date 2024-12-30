@@ -1233,6 +1233,8 @@ class MinswapiUSDUSDMStableState(MinswapDJEDiUSDStableState):
 
 
 class MinswapiUSDUSDCStableState(MinswapDJEDiUSDStableState):
+    asset_mulitipliers: ClassVar[list[int]] = [1, 100]
+
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
             "addr1wy42rt3rdptdaa2lwlntkx49ksuqrmqqjlu7pf5l5f8upmgj3gq2m",
