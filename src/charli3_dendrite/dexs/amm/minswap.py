@@ -815,6 +815,21 @@ class MinswapiUSDUSDMStablePoolDatum(MinswapStablePoolDatum):
         )
 
 
+@dataclass
+class MinswapiUSDUSDCStablePoolDatum(MinswapStablePoolDatum):
+    """Pool Datum."""
+
+    CONSTR_ID = 0
+
+    def pool_pair(self) -> Assets | None:
+        return Assets(
+            **{
+                "25c5de5f5b286073c593edfd77b48abc7a48e5a4f3d4cd9d428ff93555534443": 0,
+                "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344": 0,
+            },
+        )
+
+
 class MinswapCPPState(AbstractConstantProductPoolState):
     """Minswap Constant Product Pool State."""
 
@@ -1214,4 +1229,31 @@ class MinswapiUSDUSDMStableState(MinswapDJEDiUSDStableState):
     def pool_policy(cls) -> list[str]:
         return [
             "96402c6f5e7a04f16b4d6f500ab039ff5eac5d0226d4f88bf5523ce85553444d2d695553442d534c50",
+        ]
+
+
+class MinswapiUSDUSDCStableState(MinswapDJEDiUSDStableState):
+    _stake_address: ClassVar[Address] = [
+        Address.from_primitive(
+            "addr1wy42rt3rdptdaa2lwlntkx49ksuqrmqqjlu7pf5l5f8upmgj3gq2m",
+        ),
+    ]
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        return PoolSelector(
+            addresses=["addr1wx4w03kq5tfhaad2fmglefgejj0anajcsvvg88w96lrmylc7mx5rm"],
+            assets=[
+                "739150a2612da82e16adc2a3a1f88b256202d8415df0c5b7a2ff93fb555344432d695553442d302e312d534c50",
+            ],
+        )
+
+    @classmethod
+    def pool_datum_class(self) -> type[MinswapiUSDUSDCStablePoolDatum]:
+        return MinswapiUSDUSDCStablePoolDatum
+
+    @classmethod
+    def pool_policy(cls) -> list[str]:
+        return [
+            "739150a2612da82e16adc2a3a1f88b256202d8415df0c5b7a2ff93fb555344432d695553442d302e312d534c50",
         ]

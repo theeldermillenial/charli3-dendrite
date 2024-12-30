@@ -718,9 +718,16 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
                     )
                 else:
                     values["assets"]["lovelace"] = values["assets"].pop("lovelace")
+
             values["assets"] = Assets.model_validate(values["assets"])
 
+            # Store a copy of the assets
+            assets = Assets.model_validate(values["assets"].model_dump())
+
             cls.post_init(values)
+
+            # Set assets back to the original value
+            values["assets"] = assets
 
             return True
         else:
