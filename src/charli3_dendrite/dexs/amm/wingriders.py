@@ -710,19 +710,19 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
         if "pool_nft" in values and "dex_nft" in values:
             if cls.dex_policy()[0] not in values["dex_nft"]:
                 raise NotAPoolError("Invalid DEX NFT")
-            if len(values["assets"]) == 3:
-                # Send the ADA token to the end
-                if isinstance(values["assets"], Assets):
-                    values["assets"].root["lovelace"] = values["assets"].root.pop(
-                        "lovelace",
-                    )
-                else:
-                    values["assets"]["lovelace"] = values["assets"].pop("lovelace")
 
-            values["assets"] = Assets.model_validate(values["assets"])
+            if not isinstance(values["assets"], Assets):
+                values["assets"] = Assets.model_validate(values["assets"])
 
             # Store a copy of the assets
             assets = Assets.model_validate(values["assets"].model_dump())
+
+            # For non-ada assets, move ada to the end
+            if len(values["assets"]) == 3:
+                values["assets"].root["lovelace"] = values["assets"].root.pop(
+                    "lovelace",
+                )
+                assets.root["lovelace"] = values["assets"].root.pop("lovelace")
 
             cls.post_init(values)
 
