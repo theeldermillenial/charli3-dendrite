@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from functools import lru_cache
 from math import ceil
+from math import floor
 from typing import Dict
 from typing import List
 from typing import Union
@@ -162,7 +163,7 @@ class GeniusYieldOrderState(AbstractOrderState):
     datum_cbor: str
     datum_hash: str
     inactive: bool = False
-    fee: int = 30 / 1.003
+    fee: int = 30
 
     _batcher: Assets = Assets(lovelace=1000000)
     _datum_parsed: PlutusData | None = None
@@ -180,8 +181,8 @@ class GeniusYieldOrderState(AbstractOrderState):
             Optional[str]: policy or policy+name of dex nft
         """
         return [
-            "22f6999d4effc0ade05f6e1a70b702c65d6b3cdf0e301e4a8267f585",
-            "642c1f7bf79ca48c0f97239fcb2f3b42b92f2548184ab394e1e1e503",
+            "22f6999d4effc0ade05f6e1a70b702c65d6b3cdf0e301e4a8267f585",  # v1
+            "642c1f7bf79ca48c0f97239fcb2f3b42b92f2548184ab394e1e1e503",  # v1.1
         ]
 
     @classmethod
@@ -191,7 +192,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
     @property
     def volume_fee(self) -> float:
-        return 30 / 1.003
+        return self.fee
 
     @property
     def reference_utxo(self) -> UTxO | None:
@@ -308,18 +309,8 @@ class GeniusYieldOrderState(AbstractOrderState):
             addresses=self.pool_selector().addresses,
         )
 
-        # Ensure the output matches required outputs
-        out_check, _ = self.get_amount_out(asset=in_assets)
-        assert out_check.quantity() == out_assets.quantity()
-
-        # Ensure user is not overpaying
-        in_check, _ = self.get_amount_in(asset=out_assets)
-        assert (
-            in_assets.quantity() - in_check.quantity()
-            == 0  # <= self.price[0] / self.price[1]
-        )
-        original_assets = in_assets
-        in_assets = in_check
+        payment = self._get_closest_input(in_assets)
+        fee = self._get_fee(payment)
 
         assets = self.assets + Assets(**{self.dex_nft.unit(): 1})
         input_utxo = UTxO(
@@ -352,14 +343,9 @@ class GeniusYieldOrderState(AbstractOrderState):
         order_datum.offered_amount -= out_assets.quantity()
         order_datum.partial_fills += 1
         order_datum.contained_fee.lovelaces += self.order_datum.maker_lovelace_fee
-        order_datum.contained_fee.asked_tokens += (
-            int(in_assets.quantity() * self.volume_fee) // 10000
-        )
-        order_datum.contained_payment += (
-            original_assets.quantity()
-            - int(in_assets.quantity() * self.volume_fee) // 10000
-        )
-        assets.root[in_assets.unit()] += original_assets.quantity()
+        order_datum.contained_fee.asked_tokens += fee.quantity()
+        order_datum.contained_payment += payment.quantity()
+        assets.root[in_assets.unit()] += (payment + fee).quantity()
         assets.root[out_assets.unit()] -= out_assets.quantity()
         assets += self._batcher
 
@@ -433,9 +419,7 @@ class GeniusYieldOrderState(AbstractOrderState):
                 reserved_value={},
             )
             fee_assets.root["lovelace"] += 1000000
-            fee_assets += Assets(
-                **{self.in_unit: (in_assets.quantity() * self.volume_fee) // 10000},
-            )
+            fee_assets += fee
             fee_txo = TransactionOutput(
                 address=fee_address,
                 amount=asset_to_value(assets=fee_assets),
@@ -476,75 +460,84 @@ class GeniusYieldOrderState(AbstractOrderState):
         ):
             values["inactive"] = True
 
-        return values
+    def _get_fee(self, in_assets: Assets) -> Assets:
+        """Get the fee for the transaction."""
+        # Calculate the fee, round up for v1
+        if self.dex_nft.unit().startswith(
+            "22f6999d4effc0ade05f6e1a70b702c65d6b3cdf0e301e4a8267f585",
+        ):
+            fee = Assets(
+                root={self.in_unit: ceil(in_assets.quantity() * self.fee / 10000)},
+            )
+        else:
+            fee = Assets(root={self.in_unit: in_assets.quantity() * self.fee // 10000})
+
+        return fee
+
+    def _get_closest_input(self, asset: Assets) -> tuple[Assets, Assets]:
+        """Get the closest input amount to the asset."""
+        num, denom = self.price
+
+        # Calculate the largest amount without going over the input amount
+        if self.dex_nft.unit().startswith(
+            "22f6999d4effc0ade05f6e1a70b702c65d6b3cdf0e301e4a8267f585",
+        ):
+            amount_in = Assets(
+                root={self.in_unit: asset.quantity() * 10000 // (self.fee + 10000)},
+            )
+        else:
+            amount_in = Assets(
+                root={
+                    self.in_unit: ceil(asset.quantity() * 10000 / (self.fee + 10000)),
+                },
+            )
+
+        # Quantize to the nearest unit
+        amount_in.root[self.in_unit] = ceil(
+            (amount_in.quantity() * denom // num) * num / denom,
+        )
+
+        return amount_in
 
     @lru_cache(64)
-    def get_amount_out(self, asset: Assets, precise=True) -> tuple[Assets, float]:
-        amount_out, slippage = super().get_amount_out(asset=asset, precise=precise)
+    def get_amount_out(self, asset: Assets, precise=False) -> tuple[Assets, float]:
+        amount_in = self._get_closest_input(asset)
 
-        if self.price[0] / self.price[1] > 1:
-            new_asset = Assets.model_validate(asset.model_dump())
-            new_asset.root[self.in_unit] += 1
-            new_amount_out, _ = super().get_amount_out(asset=new_asset, precise=precise)
+        # v1.1 seem to ceil the input rather than floor, so account for that
+        if self.dex_nft.unit().startswith(
+            "642c1f7bf79ca48c0f97239fcb2f3b42b92f2548184ab394e1e1e503",
+        ):
+            amount_in.root[self.in_unit] -= 1
 
-            if new_amount_out.quantity() == amount_out.quantity():
-                while amount_out.quantity() == new_amount_out.quantity():
-                    new_asset.root[self.in_unit] -= 1
-                    new_amount_out, _ = super().get_amount_out(
-                        asset=new_asset,
-                        precise=precise,
-                    )
+        # We want the handle the fee ourself, so set to 0 so no fees are calculated
+        fee = self.fee
+        self.fee = 0
+        amount_out, slippage = super().get_amount_out(asset=amount_in, precise=precise)
+        self.fee = fee
 
-                amount_out = new_amount_out
+        # Depending on contract version, we need to ceil or floor the output
+        if self.dex_nft.unit().startswith(
+            "642c1f7bf79ca48c0f97239fcb2f3b42b92f2548184ab394e1e1e503",
+        ):
+            amount_out.root[self.out_unit] = ceil(amount_out.quantity())
+        else:
+            amount_out.root[self.out_unit] = floor(amount_out.quantity())
 
         return amount_out, slippage
 
     @lru_cache(64)
-    def get_amount_in(self, asset: Assets, precise=False) -> tuple[Assets, float]:
+    def get_amount_in(self, asset: Assets, precise=True) -> tuple[Assets, float]:
+        # We want the handle the fee ourself, so set to 0 so no fees are calculated
         fee = self.fee
-        self.fee *= 1.003
-        amount_in, slippage = super().get_amount_in(asset=asset, precise=precise)
+        self.fee = 0
+        amount_in, _ = super().get_amount_in(asset=asset, precise=precise)
         self.fee = fee
 
-        amount_in.root[self.in_unit] = ceil(amount_in.quantity())
+        fee = self._get_fee(amount_in)
 
-        # get_amount_out is correct, this corrects nominal errors
-        amount_out, _ = self.get_amount_out(asset=amount_in)
-        delta = max(1, self.price[0] // self.price[1])
-        for _ in range(100):
-            while (
-                amount_out.quantity() < asset.quantity()
-                and amount_out.quantity() < self.available.quantity()
-            ):
-                amount_in.root[self.in_unit] += delta
-                amount_out, _ = self.get_amount_out(asset=amount_in)
-            if delta > 1:
-                amount_in.root[self.in_unit] -= delta
-                amount_out, _ = self.get_amount_out(asset=amount_in)
-            if delta == 1:
-                break
-            delta = max(1, delta // 2)
+        amount_in = self._get_closest_input(amount_in + fee)
 
-        temp_amount_in = Assets.model_validate(amount_in.model_dump())
-        amount_out, _ = self.get_amount_out(asset=amount_in)
-        temp_amount_in.root[temp_amount_in.unit()] -= 1
-        temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
-        delta = max(1, self.price[1] // self.price[0])
-        for _ in range(100):
-            while temp_amount_out.quantity() == amount_out.quantity():
-                amount_in.root[self.in_unit] = temp_amount_in.root[
-                    temp_amount_in.unit()
-                ]
-                temp_amount_in.root[temp_amount_in.unit()] -= delta
-                temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
-            if delta > 1:
-                temp_amount_in.root[temp_amount_in.unit()] += delta
-                temp_amount_out, _ = self.get_amount_out(asset=temp_amount_in)
-            if delta == 1:
-                break
-            delta = max(1, delta // 2)
-
-        return amount_in, slippage
+        return amount_in + fee, 0
 
     @classmethod
     def order_selector(cls) -> list[str]:
@@ -612,7 +605,7 @@ class GeniusYieldOrderState(AbstractOrderState):
 
 
 class GeniusYieldOrderBook(AbstractOrderBookState):
-    fee: int = 30 / 1.003
+    fee: int = 30
     _deposit: Assets = Assets(lovelace=0)
 
     @classmethod
