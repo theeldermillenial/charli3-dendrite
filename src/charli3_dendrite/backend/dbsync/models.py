@@ -32,7 +32,7 @@ class PoolSelector(AbstractDBSyncStructure):
     def select(cls) -> str:
         """Select SQL query for swap pools."""
         return """
-SELECT address.address,
+SELECT txo.address,
 ENCODE(tx.hash, 'hex') as "tx_hash",
 txo.index as "tx_index",
 EXTRACT(

@@ -186,9 +186,10 @@ class DbsyncBackend(AbstractBackend):
 
         # Get txo from pool script address
         datum_selector += """FROM (
-    SELECT *
+    SELECT tx_out.*, address.address, address.payment_cred
     FROM tx_out
-    WHERE tx_out.payment_cred = ANY(%(addresses)b)
+    LEFT JOIN address ON tx_out.address_id = address.id
+    WHERE address.payment_cred = ANY(%(addresses)b)
 ) as txo"""
 
         # If assets are specified, select assets
@@ -400,8 +401,11 @@ AND ma.policy = ANY(%(policies)b) AND ma.name = ANY(%(names)b)"""
         datum_selector = (
             PoolSelector.select()
             + """
-    FROM tx_out txo
-    LEFT JOIN address ON txo.address_id = address.id
+    FROM (
+        SELECT txo.*, address.address, address.payment_cred
+        FROM tx_out txo
+        LEFT JOIN address ON txo.address_id = address.id
+    ) AS txo
     LEFT JOIN tx ON txo.tx_id = tx.id
     LEFT JOIN datum ON txo.data_hash = datum.hash
     LEFT JOIN block ON tx.block_id = block.id
