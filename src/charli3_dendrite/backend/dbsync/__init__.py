@@ -1,4 +1,5 @@
 """Concrete implementation of AbstractBackend for db-sync."""
+
 import asyncio
 import logging
 import os
@@ -300,9 +301,10 @@ OFFSET %(offset)s"""
         datum_selector = PoolSelector.select()
 
         datum_selector += """FROM (
-    SELECT *
+    SELECT tx_out.*, address.address, address.payment_cred
     FROM tx_out
-    WHERE tx_out.payment_cred = ANY(%(addresses)b)
+    LEFT JOIN address ON tx_out.address_id = address.id
+    WHERE address.payment_cred = ANY(%(addresses)b)
 ) as txo"""
 
         # If assets are specified, select assets
@@ -399,6 +401,7 @@ AND ma.policy = ANY(%(policies)b) AND ma.name = ANY(%(names)b)"""
             PoolSelector.select()
             + """
     FROM tx_out txo
+    LEFT JOIN address ON txo.address_id = address.id
     LEFT JOIN tx ON txo.tx_id = tx.id
     LEFT JOIN datum ON txo.data_hash = datum.hash
     LEFT JOIN block ON tx.block_id = block.id
@@ -430,6 +433,7 @@ AND ma.policy = ANY(%(policies)b) AND ma.name = ANY(%(names)b)"""
         query += """
 FROM script s
 LEFT JOIN tx_out ON s.id = tx_out.reference_script_id
+LEFT JOIN address ON tx_out.address_id = address.id
 LEFT JOIN tx ON tx.id = tx_out.tx_id
 LEFT JOIN datum ON tx_out.inline_datum_id = datum.id
 LEFT JOIN block on block.id = tx.block_id
@@ -481,13 +485,14 @@ LIMIT 1"""
 
         query += """
 FROM tx_out
+LEFT JOIN address ON tx_out.address_id = address.id
 LEFT JOIN ma_tx_out mtxo ON mtxo.tx_out_id = tx_out.id
 LEFT JOIN multi_asset ma ON ma.id = mtxo.ident
 LEFT JOIN tx ON tx.id = tx_out.tx_id
 LEFT JOIN datum ON tx_out.inline_datum_id = datum.id
 LEFT JOIN block on block.id = tx.block_id
 LEFT JOIN script s ON s.id = tx_out.reference_script_id
-WHERE tx_out.payment_cred = %(address)b AND tx_out.consumed_by_tx_id IS NULL"""
+WHERE address.payment_cred = %(address)b AND tx_out.consumed_by_tx_id IS NULL"""
 
         if asset is not None:
             query += """
@@ -548,9 +553,10 @@ LIMIT 1
         utxo_selector += """FROM (
     SELECT *
     FROM tx_out txo
-    WHERE txo.payment_cred = ANY(%(addresses)b) AND txo.data_hash IS NOT NULL
+    WHERE address.payment_cred = ANY(%(addresses)b) AND txo.data_hash IS NOT NULL
 ) txo_stake
 LEFT JOIN tx ON tx.id = txo_stake.tx_id
+LEFT JOIN address ON address.id = txo_stake.address_id
 LEFT JOIN block ON tx.block_id = block.id
 LEFT JOIN datum ON txo_stake.data_hash = datum.hash
 LEFT JOIN (
@@ -566,10 +572,11 @@ LEFT JOIN (
     tx_in.index as "tx_out_index",
     txo.inline_datum_id,
     txo.reference_script_id,
-    txo.address,
+    address.address,
     datum.hash as "datum_hash",
     datum.bytes as "datum_bytes"
     FROM tx_out tx_in
+    LEFT JOIN address on address.id = tx_in.address_id
     LEFT JOIN tx ON tx.id = tx_in.consumed_by_tx_id
     LEFT JOIN tx_out txo ON tx.id = txo.tx_id
     LEFT JOIN block ON tx.block_id = block.id
@@ -650,8 +657,9 @@ OFFSET %(offset)s"""
     ) -> tuple[str, dict]:
         utxo_selector = """
     SELECT (
-        SELECT array_agg(DISTINCT txo.address)
+        SELECT array_agg(DISTINCT address.address)
         FROM tx_out txo
+        LEFT JOIN address ON txo.address_id = address.id
         WHERE txo.consumed_by_tx_id = txo_stake.tx_id
     ) AS "submit_address_inputs",
     txo_stake.address as "submit_address_stake",
@@ -721,7 +729,7 @@ OFFSET %(offset)s"""
         txo.index,
         txo.value,
         txo.data_hash,
-        txo.address,
+        address.address,
         tx.hash as "tx_hash",
         tx.block_index,
         block.hash as "block_hash",
@@ -729,11 +737,12 @@ OFFSET %(offset)s"""
         datum.hash as "datum_hash",
         datum.bytes as "datum_bytes"
         FROM tx_out txo
+        LEFT JOIN address ON txo.address_id = address.id
         LEFT JOIN tx ON tx.id = txo.tx_id
         LEFT JOIN block ON tx.block_id = block.id
         LEFT JOIN datum ON txo.data_hash = datum.hash
         LEFT JOIN tx tx_in_ref ON txo.consumed_by_tx_id = tx_in_ref.id
-        WHERE txo.payment_cred = ANY(%(addresses)b) AND txo.data_hash IS NOT NULL"""
+        WHERE address.payment_cred = ANY(%(addresses)b) AND txo.data_hash IS NOT NULL"""
 
         if out_tx_hash is not None:
             utxo_selector += """
@@ -764,12 +773,13 @@ OFFSET %(offset)s"""
         tx_in.index as "tx_out_index",
         txo.inline_datum_id,
         txo.reference_script_id,
-        txo.address,
+        address.address,
         datum.hash as "datum_hash",
         datum.bytes as "datum_bytes"
         FROM tx_out tx_in
         LEFT JOIN tx ON tx.id = tx_in.consumed_by_tx_id
         LEFT JOIN tx_out txo ON tx.id = txo.tx_id
+        LEFT JOIN address on address.id = txo.address_id
         LEFT JOIN block ON tx.block_id = block.id
         LEFT JOIN datum ON txo.data_hash = datum.hash
     ) txo_output ON txo_output.tx_out_id = txo_stake.tx_id
@@ -937,12 +947,13 @@ COALESCE(
     tx_in.index as "tx_out_index",
     txo.inline_datum_id,
     txo.reference_script_id,
-    txo.address,
+    address.address,
     datum.hash as "datum_hash",
     datum.bytes as "datum_bytes"
     FROM tx_out tx_in
     LEFT JOIN tx ON tx.id = tx_in.tx_id
     LEFT JOIN tx_out txo ON tx.id = txo.tx_id
+    LEFT JOIN address on address.id = txo.address_id
     LEFT JOIN block ON tx.block_id = block.id
     LEFT JOIN datum ON txo.data_hash = datum.hash"""
 
@@ -961,7 +972,11 @@ COALESCE(
     txo.reference_script_id, txo.address, datum.hash, datum.bytes
     HAVING COUNT(DISTINCT txo.address) = 1
 ) txo_output
-LEFT JOIN tx_out txo ON txo.tx_id = txo_output.tx_out_id
+LEFT JOIN (
+    SELECT tx_out.*, address.address, address.payment_cred
+    FROM tx_out txo
+    LEFT JOIN address ON address.id = txo.address_id
+) txo ON txo.tx_id = txo_output.tx_out_id
     AND txo_output.tx_out_index = txo.index
     AND txo.payment_cred = ANY(%(addresses)b)
     AND txo.data_hash IS NOT NULL
@@ -1037,7 +1052,7 @@ OFFSET %(offset)s"""
     ) -> tuple[str, dict]:
         """Get the target address for the given asset."""
         query = """
-    SELECT DISTINCT txo.address, block.time
+    SELECT DISTINCT address.address, block.time
     FROM (
         SELECT tx.id, tx.block_id
         FROM tx_out txo
@@ -1048,6 +1063,7 @@ OFFSET %(offset)s"""
     ) as tx
     LEFT JOIN block ON block.id = tx.block_id
     LEFT JOIN tx_out txo ON tx.id = txo.tx_id
+    LEFT JOIN address ON txo.address_id = address.id
     LEFT JOIN ma_tx_out mtxo on txo.id = mtxo.tx_out_id
     LEFT JOIN multi_asset ma ON ma.id = mtxo.ident
     WHERE ma.policy = %(policy)b AND ma.name = %(name)b
