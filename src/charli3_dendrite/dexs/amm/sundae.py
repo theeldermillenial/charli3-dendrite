@@ -575,7 +575,7 @@ class SundaeSwapCPPState(AbstractConstantProductPoolState):
 
 class SundaeSwapV3CPPState(AbstractConstantProductPoolState):
     fee: int | list[int] = [30, 30]
-    _batcher = Assets(lovelace=1000000)
+    _batcher = Assets(lovelace=1280000)
     _deposit = Assets(lovelace=2000000)
     _stake_address: ClassVar[Address] = Address.from_primitive(
         "addr1z8ax5k9mutg07p2ngscu3chsauktmstq92z9de938j8nqa7zcka2k2tsgmuedt4xl2j5awftvqzmmv3vs2yduzqxfcmsyun6n3",
@@ -636,12 +636,18 @@ class SundaeSwapV3CPPState(AbstractConstantProductPoolState):
     @classmethod
     @lru_cache
     def get_batcher_fee(cls, last_check: int = time.time() // 3600):
-        settings = get_backend().get_datum_from_address(
-            address=Address.decode(
-                "addr1w9ke67k2ckdyg60v22ajqugxze79e0ax3yqgl7nway4vc5q84hpqs",
-            ),
-            asset="6d9d7acac59a4469ec52bb207106167c5cbfa689008ffa6ee92acc5073657474696e6773",
-        )
+        try:
+            settings = get_backend().get_datum_from_address(
+                address=Address.decode(
+                    "addr1w9ke67k2ckdyg60v22ajqugxze79e0ax3yqgl7nway4vc5q84hpqs",
+                ),
+                asset="6d9d7acac59a4469ec52bb207106167c5cbfa689008ffa6ee92acc5073657474696e6773",
+            )
+        except ValueError:
+            print(
+                "No settings found for SundaeSwapV3, likely because no backend is set.",
+            )
+            return
 
         datum = SundaeV3Settings.from_cbor(settings.datum_cbor)
         cls._batcher_fee = Assets(lovelace=datum.simple_fee + datum.base_fee)
