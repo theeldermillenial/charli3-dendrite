@@ -767,10 +767,10 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             assets.root[assets.unit(0)] -= 3000000
 
         assets.root[assets.unit(0)] -= (
-            datum.treasury_a - datum.project_treasury_a - datum.reserve_treasury_a
+            datum.treasury_a + datum.project_treasury_a + datum.reserve_treasury_a
         )
         assets.root[assets.unit(1)] -= (
-            datum.treasury_b - datum.project_treasury_b - datum.reserve_treasury_b
+            datum.treasury_b + datum.project_treasury_b + datum.reserve_treasury_b
         )
 
         values["fee"] = int(

@@ -609,11 +609,15 @@ class GeniusYieldOrderBook(AbstractOrderBookState):
     _deposit: Assets = Assets(lovelace=0)
 
     @classmethod
-    def get_book(cls, assets: Assets, orders: list[GeniusYieldOrderState] | None):
+    def get_book(
+        cls,
+        assets: Assets,
+        orders: list[GeniusYieldOrderState] | None,
+    ) -> "GeniusYieldOrderBook":
         if orders is None:
             selector = GeniusYieldOrderState.pool_selector()
 
-            result = get_pool_utxos(
+            result = get_backend().get_pool_utxos(
                 limit=10000,
                 historical=False,
                 **selector.model_dump(),
