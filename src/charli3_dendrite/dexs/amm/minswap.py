@@ -834,7 +834,7 @@ class MinswapCPPState(AbstractConstantProductPoolState):
     """Minswap Constant Product Pool State."""
 
     fee: int = 30
-    _batcher = Assets(lovelace=2000000)
+    _batcher = Assets(lovelace=900000)
     _deposit = Assets(lovelace=2000000)
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
@@ -882,23 +882,23 @@ class MinswapCPPState(AbstractConstantProductPoolState):
     def pool_datum_class(self) -> type[MinswapPoolDatum]:
         return MinswapPoolDatum
 
-    def batcher_fee(
-        self,
-        in_assets: Assets | None = None,
-        out_assets: Assets | None = None,
-        extra_assets: Assets | None = None,
-    ) -> Assets:
-        """Batcher fee.
+    # def batcher_fee(
+    #     self,
+    #     in_assets: Assets | None = None,
+    #     out_assets: Assets | None = None,
+    #     extra_assets: Assets | None = None,
+    # ) -> Assets:
+    #     """Batcher fee.
 
-        For Minswap, the batcher fee decreases linearly from 2.0 ADA to 1.5 ADA as the
-        MIN in the input assets from 0 - 50,000 MIN.
-        """
-        MIN = "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e"
-        if extra_assets is not None and MIN in extra_assets:
-            fee_reduction = min(extra_assets[MIN] // 10**5, 500000)
-        else:
-            fee_reduction = 0
-        return self._batcher - Assets(lovelace=fee_reduction)
+    #     For Minswap, the batcher fee decreases linearly from 2.0 ADA to 1.5 ADA as the
+    #     MIN in the input assets from 0 - 50,000 MIN.
+    #     """
+    #     MIN = "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e"
+    #     if extra_assets is not None and MIN in extra_assets:
+    #         fee_reduction = min(extra_assets[MIN] // 10**5, 500000)
+    #     else:
+    #         fee_reduction = 0
+    #     return self._batcher - Assets(lovelace=fee_reduction)
 
     @property
     def pool_id(self) -> str:
@@ -922,7 +922,7 @@ class MinswapV2CPPState(AbstractConstantProductPoolState):
     """Minswap Constant Product Pool State."""
 
     fee: int | list[int] = [30, 30]
-    _batcher = Assets(lovelace=2000000)
+    _batcher = Assets(lovelace=700000)
     _deposit = Assets(lovelace=2000000)
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
@@ -972,23 +972,23 @@ class MinswapV2CPPState(AbstractConstantProductPoolState):
     def pool_datum_class(self) -> type[MinswapV2PoolDatum]:
         return MinswapV2PoolDatum
 
-    def batcher_fee(
-        self,
-        in_assets: Assets | None = None,
-        out_assets: Assets | None = None,
-        extra_assets: Assets | None = None,
-    ) -> Assets:
-        """Batcher fee.
+    # def batcher_fee(
+    #     self,
+    #     in_assets: Assets | None = None,
+    #     out_assets: Assets | None = None,
+    #     extra_assets: Assets | None = None,
+    # ) -> Assets:
+    #     """Batcher fee.
 
-        For Minswap, the batcher fee decreases linearly from 2.0 ADA to 1.5 ADA as the
-        MIN in the input assets from 0 - 50,000 MIN.
-        """
-        MIN = "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e"
-        if extra_assets is not None and MIN in extra_assets:
-            fee_reduction = min(extra_assets[MIN] // 10**5, 500000)
-        else:
-            fee_reduction = 0
-        return self._batcher - Assets(lovelace=fee_reduction)
+    #     For Minswap, the batcher fee decreases linearly from 2.0 ADA to 1.5 ADA as the
+    #     MIN in the input assets from 0 - 50,000 MIN.
+    #     """
+    #     MIN = "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e"
+    #     if extra_assets is not None and MIN in extra_assets:
+    #         fee_reduction = min(extra_assets[MIN] // 10**5, 500000)
+    #     else:
+    #         fee_reduction = 0
+    #     return self._batcher - Assets(lovelace=fee_reduction)
 
     @property
     def pool_id(self) -> str:
@@ -1055,7 +1055,7 @@ class MinswapDJEDiUSDStableState(AbstractCommonStableSwapPoolState, MinswapCPPSt
     """Minswap DJED/iUSD Stable State."""
 
     fee: float = 1
-    _batcher = Assets(lovelace=2000000)
+    _batcher = Assets(lovelace=600000)
     _deposit = Assets(lovelace=2000000)
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
