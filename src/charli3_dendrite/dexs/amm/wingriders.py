@@ -730,12 +730,12 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
                 values["assets"].root["lovelace"] = values["assets"].root.pop(
                     "lovelace",
                 )
-                # assets.root["lovelace"] = values["assets"].root.pop("lovelace")
+                assets.root["lovelace"] = values["assets"].root.pop("lovelace")
 
             cls.post_init(values)
 
-            # # Set assets back to the original value
-            # values["assets"] = assets
+            # Set assets back to the original value
+            values["assets"] = assets
 
             return True
         else:
