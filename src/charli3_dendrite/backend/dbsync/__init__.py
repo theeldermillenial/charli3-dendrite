@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import os
-from audioop import add
 from datetime import datetime
 from threading import Lock
 
@@ -36,6 +35,7 @@ class DbsyncBackend(AbstractBackend):
     def __init__(self) -> None:
         """Initialize the DbsyncBackend with database connection details."""
         self.lock = Lock()
+        self.async_lock = asyncio.Lock()
 
         self.POOL = None
         self.ASYNC_POOL = None
@@ -97,7 +97,7 @@ class DbsyncBackend(AbstractBackend):
         Returns:
             psycopg_pool.ConnectionPool: A connection pool for database operations.
         """
-        with self.lock:
+        async with self.async_lock:
             if self.ASYNC_POOL is None:
                 conninfo = (
                     f"host={self.DBSYNC_HOST} "
