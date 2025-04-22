@@ -727,10 +727,9 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
 
             # For non-ada assets, move ada to the end
             if len(values["assets"]) == 3:
-                values["assets"].root["lovelace"] = values["assets"].root.pop(
-                    "lovelace",
-                )
-                assets.root["lovelace"] = values["assets"].root.pop("lovelace")
+                lovelace = values["assets"].root.pop("lovelace")
+                values["assets"].root["lovelace"] = lovelace
+                assets.root["lovelace"] = lovelace
 
             cls.post_init(values)
 
