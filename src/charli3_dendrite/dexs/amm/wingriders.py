@@ -362,12 +362,16 @@ class WingRidersV2OrderDatum(OrderDatum):
             compensation_datum=b"",
             compensation_datum_type=NoDatum(),
             deadline=timeout,
-            asset_a_symbol=bytes.fromhex(merged.unit()[:56])
-            if merged.unit() != "lovelace"
-            else b"",
-            asset_a_token=bytes.fromhex(merged.unit()[56:])
-            if merged.unit() != "lovelace"
-            else b"",
+            asset_a_symbol=(
+                bytes.fromhex(merged.unit()[:56])
+                if merged.unit() != "lovelace"
+                else b""
+            ),
+            asset_a_token=(
+                bytes.fromhex(merged.unit()[56:])
+                if merged.unit() != "lovelace"
+                else b""
+            ),
             asset_b_symbol=bytes.fromhex(merged.unit(1)[:56]),
             asset_b_token=bytes.fromhex(merged.unit(1)[56:]),
             action=SwapAction(
@@ -722,19 +726,7 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             if not isinstance(values["assets"], Assets):
                 values["assets"] = Assets.model_validate(values["assets"])
 
-            # Store a copy of the assets
-            assets = Assets.model_validate(values["assets"].model_dump())
-
-            # For non-ada assets, move ada to the end
-            if len(values["assets"]) == 3:
-                lovelace = values["assets"].root.pop("lovelace")
-                values["assets"].root["lovelace"] = lovelace
-                assets.root["lovelace"] = lovelace
-
-            cls.post_init(values)
-
-            # Set assets back to the original value
-            values["assets"] = assets
+            cls._post_init(values)
 
             return True
         else:
@@ -748,10 +740,8 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
         return self._pool_datum_parsed
 
     @classmethod
-    def post_init(cls, values):
+    def _post_init(cls, values):
         super().post_init(values)
-
-        assets = values["assets"]
 
         try:
             datum = WingRidersV2SSPoolDatum.from_cbor(values["datum_cbor"])
@@ -762,16 +752,6 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
                 raise NotAPoolError("Invalid Datum")
             datum = WingRidersV2PoolDatum.from_cbor(values["datum_cbor"])
 
-        if len(assets) == 2:
-            assets.root[assets.unit(0)] -= 3000000
-
-        assets.root[assets.unit(0)] -= (
-            datum.treasury_a + datum.project_treasury_a + datum.reserve_treasury_a
-        )
-        assets.root[assets.unit(1)] -= (
-            datum.treasury_b + datum.project_treasury_b + datum.reserve_treasury_b
-        )
-
         values["fee"] = int(
             (
                 datum.swap_fee_in_basis
@@ -780,6 +760,24 @@ class WingRidersV2CPPState(AbstractConstantProductPoolState):
             )
             * 10000
             / datum.fee_basis,
+        )
+
+        return datum
+
+    @classmethod
+    def post_init(cls, values):
+        datum = cls._post_init(values)
+
+        assets = values["assets"]
+
+        if len(assets) == 2:
+            assets.root[assets.unit(0)] -= 3000000
+
+        assets.root[assets.unit(0)] -= (
+            datum.treasury_a + datum.project_treasury_a + datum.reserve_treasury_a
+        )
+        assets.root[assets.unit(1)] -= (
+            datum.treasury_b + datum.project_treasury_b + datum.reserve_treasury_b
         )
 
     def deposit(
