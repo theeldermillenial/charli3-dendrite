@@ -185,6 +185,10 @@ class SSPoolRedeemer(PlutusData):
         It is necessary to make sure that redeemer indices are already set before
         calling this function.
         """
+        contract_hash = Address.from_primitive(
+            "addr1w9wnm7vle7al9q4aw63aw63wxz7aytnpc4h3gcjy0yufxwc3mr3e5"
+        ).payment_part.payload
+
         # Set the input index
         for key, value in tx_builder.redeemers().items():
             if value.data == self:
