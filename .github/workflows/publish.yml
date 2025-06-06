@@ -1,0 +1,145 @@
+permissions:
+  contents: write
+
+name: Build and Publish
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install build dependencies
+      run: |
+        uv pip install build bump-my-version --system
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Get merged branch name
+      if: github.ref == 'refs/heads/dev'
+      id: merged-branch
+      run: |
+        if [[ ${{ github.event_name }} == 'push' ]]; then
+          # For direct pushes to dev, use the current branch name
+          BRANCH_NAME=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')
+        else
+          # For pull requests, get the source branch name
+          BRANCH_NAME=${{ github.event.pull_request.head.ref }}
+        fi
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+    - name: Check if dev sync from master or master merge
+      if: github.ref == 'refs/heads/dev'
+      id: check-master-merge
+      run: |
+        git fetch origin master
+
+        SKIP_DEV_BUMP="false"
+        HEAD_SHA_DEV=$(git rev-parse HEAD)
+        MASTER_SHA=$(git rev-parse origin/master)
+
+        echo "Current dev HEAD: $HEAD_SHA_DEV"
+        echo "Current origin/master SHA: $MASTER_SHA"
+
+        if [ "$HEAD_SHA_DEV" == "$MASTER_SHA" ]; then
+          SKIP_DEV_BUMP="true"
+          echo "Dev branch is identical to master branch. Skipping dev version bump."
+        else
+          NUM_PARENTS=$(git cat-file -p HEAD | grep -c "^parent")
+          if [ "$NUM_PARENTS" -ge 2 ]; then
+            SECOND_PARENT_SHA_DEV=$(git rev-parse HEAD^2)
+            echo "Dev is a merge commit. Second parent: $SECOND_PARENT_SHA_DEV"
+            if [ "$MASTER_SHA" == "$SECOND_PARENT_SHA_DEV" ]; then
+              SKIP_DEV_BUMP="true"
+              echo "Dev is a merge commit where the second parent is current master. Skipping dev version bump."
+            else
+              echo "Dev is a merge commit, but second parent ($SECOND_PARENT_SHA_DEV) is not current master ($MASTER_SHA)."
+            fi
+          else
+            echo "Dev is not identical to master and not a merge commit from master."
+          fi
+        fi
+        echo "is_master_merge=$SKIP_DEV_BUMP" >> $GITHUB_OUTPUT
+        echo "Detected situation to skip dev bump: $SKIP_DEV_BUMP"
+
+    - name: Check current version
+      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      id: current-version
+      run: |
+        CURRENT_VERSION=$(grep 'current_version = ' pyproject.toml | cut -d'"' -f2)
+        echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Determine version bump type
+      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      id: version-bump
+      run: |
+        CURRENT_VERSION=${{ steps.current-version.outputs.version }}
+        if [[ $CURRENT_VERSION =~ -dev[0-9]+$ ]]; then
+          echo "bump_type=dev" >> $GITHUB_OUTPUT
+        elif [[ ${{ steps.merged-branch.outputs.branch_name }} =~ ^(feat|feature)/ ]]; then
+          echo "bump_type=minor" >> $GITHUB_OUTPUT
+        else
+          echo "bump_type=patch" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Bump version on dev
+      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      run: |
+        bump-my-version bump ${{ steps.version-bump.outputs.bump_type }}
+        git push
+        git push --tags
+
+    - name: Bump version on master
+      if: github.ref == 'refs/heads/master'
+      run: |
+        bump-my-version bump release
+        git push
+        git push --tags
+
+    - name: Reset dev to match master and push
+      if: github.ref == 'refs/heads/master'
+      run: |
+        echo "Workflow triggered on master. Resetting dev to match master..."
+
+        git fetch origin master
+
+        echo "Checking out local dev branch (will be reset)..."
+        git checkout -B dev
+
+        echo "Resetting local dev branch hard to origin/master..."
+        git reset --hard origin/master
+
+        echo "Force pushing updated dev branch (now matching master) to origin..."
+        git push --force origin dev
+
+    - name: Build package
+      run: uv build
+      
+    - name: Publish to PyPI
+      env:
+        UV_PUBLISH_USERNAME: __token__
+        UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: uv publish
