@@ -31,10 +31,8 @@ pytest-xdist = "^3.6.1"
 mkdocs = "^1.6.0"
 mkdocs-material = "^9.5.32"
 mkdocstrings = { extras = ["python"], version = "^0.25.2" }
+pytest-subtests = "^0.14.1"
 
-
-[tool.poetry.group.devs.dependencies]
-pytest-subtests = "^0.11.0"
 
 [build-system]
 requires = ["poetry-core"]
