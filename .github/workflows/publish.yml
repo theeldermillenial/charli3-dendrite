@@ -51,49 +51,49 @@ jobs:
         fi
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-    - name: Check if dev sync from master or master merge
+    - name: Check if dev sync from main or main merge
       if: github.ref == 'refs/heads/dev'
-      id: check-master-merge
+      id: check-main-merge
       run: |
-        git fetch origin master
+        git fetch origin main
 
         SKIP_DEV_BUMP="false"
         HEAD_SHA_DEV=$(git rev-parse HEAD)
-        MASTER_SHA=$(git rev-parse origin/master)
+        MAIN_SHA=$(git rev-parse origin/main)
 
         echo "Current dev HEAD: $HEAD_SHA_DEV"
-        echo "Current origin/master SHA: $MASTER_SHA"
+        echo "Current origin/main SHA: $MAIN_SHA"
 
-        if [ "$HEAD_SHA_DEV" == "$MASTER_SHA" ]; then
+        if [ "$HEAD_SHA_DEV" == "$MAIN_SHA" ]; then
           SKIP_DEV_BUMP="true"
-          echo "Dev branch is identical to master branch. Skipping dev version bump."
+          echo "Dev branch is identical to main branch. Skipping dev version bump."
         else
           NUM_PARENTS=$(git cat-file -p HEAD | grep -c "^parent")
           if [ "$NUM_PARENTS" -ge 2 ]; then
             SECOND_PARENT_SHA_DEV=$(git rev-parse HEAD^2)
             echo "Dev is a merge commit. Second parent: $SECOND_PARENT_SHA_DEV"
-            if [ "$MASTER_SHA" == "$SECOND_PARENT_SHA_DEV" ]; then
+            if [ "$MAIN_SHA" == "$SECOND_PARENT_SHA_DEV" ]; then
               SKIP_DEV_BUMP="true"
-              echo "Dev is a merge commit where the second parent is current master. Skipping dev version bump."
+              echo "Dev is a merge commit where the second parent is current main. Skipping dev version bump."
             else
-              echo "Dev is a merge commit, but second parent ($SECOND_PARENT_SHA_DEV) is not current master ($MASTER_SHA)."
+              echo "Dev is a merge commit, but second parent ($SECOND_PARENT_SHA_DEV) is not current main ($MAIN_SHA)."
             fi
           else
-            echo "Dev is not identical to master and not a merge commit from master."
+            echo "Dev is not identical to main and not a merge commit from main."
           fi
         fi
-        echo "is_master_merge=$SKIP_DEV_BUMP" >> $GITHUB_OUTPUT
+        echo "is_main_merge=$SKIP_DEV_BUMP" >> $GITHUB_OUTPUT
         echo "Detected situation to skip dev bump: $SKIP_DEV_BUMP"
 
     - name: Check current version
-      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      if: github.ref == 'refs/heads/dev' && steps.check-main-merge.outputs.is_main_merge != 'true'
       id: current-version
       run: |
         CURRENT_VERSION=$(grep 'current_version = ' pyproject.toml | cut -d'"' -f2)
         echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
     - name: Determine version bump type
-      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      if: github.ref == 'refs/heads/dev' && steps.check-main-merge.outputs.is_main_merge != 'true'
       id: version-bump
       run: |
         CURRENT_VERSION=${{ steps.current-version.outputs.version }}
@@ -106,33 +106,33 @@ jobs:
         fi
 
     - name: Bump version on dev
-      if: github.ref == 'refs/heads/dev' && steps.check-master-merge.outputs.is_master_merge != 'true'
+      if: github.ref == 'refs/heads/dev' && steps.check-main-merge.outputs.is_main_merge != 'true'
       run: |
         bump-my-version bump ${{ steps.version-bump.outputs.bump_type }}
         git push
         git push --tags
 
-    - name: Bump version on master
-      if: github.ref == 'refs/heads/master'
+    - name: Bump version on main
+      if: github.ref == 'refs/heads/main'
       run: |
         bump-my-version bump release
         git push
         git push --tags
 
-    - name: Reset dev to match master and push
-      if: github.ref == 'refs/heads/master'
+    - name: Reset dev to match main and push
+      if: github.ref == 'refs/heads/main'
       run: |
-        echo "Workflow triggered on master. Resetting dev to match master..."
+        echo "Workflow triggered on main. Resetting dev to match main..."
 
-        git fetch origin master
+        git fetch origin main
 
         echo "Checking out local dev branch (will be reset)..."
         git checkout -B dev
 
-        echo "Resetting local dev branch hard to origin/master..."
-        git reset --hard origin/master
+        echo "Resetting local dev branch hard to origin/main..."
+        git reset --hard origin/main
 
-        echo "Force pushing updated dev branch (now matching master) to origin..."
+        echo "Force pushing updated dev branch (now matching main) to origin..."
         git push --force origin dev
 
     - name: Build package
