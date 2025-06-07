@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from http import HTTPStatus
 from typing import Any
 from typing import ClassVar
 from typing import Union
@@ -36,6 +37,7 @@ from charli3_dendrite.dataclasses.datums import AssetClass
 from charli3_dendrite.dataclasses.datums import CancelRedeemer
 from charli3_dendrite.dataclasses.datums import OrderDatum
 from charli3_dendrite.dataclasses.models import Assets
+from charli3_dendrite.dataclasses.models import DendriteBaseModel
 from charli3_dendrite.dataclasses.models import OrderType
 from charli3_dendrite.dataclasses.models import PoolSelector
 from charli3_dendrite.dexs.core.errors import InvalidPoolError
@@ -53,9 +55,9 @@ logger = logging.getLogger("cardem.api.dataclasses.axo")
 
 load_dotenv()
 
-AXO_API_KEY = os.environ.get("AXO_API_KEY")
 HTTP_OK = 200
 MIN_UTXO_VALUE = 1200000
+AXO_API_KEY = os.environ.get("AXO_API_KEY", None)
 
 
 @dataclass
@@ -68,7 +70,7 @@ class TimeMilliseconds(PlutusData):
 
 @dataclass
 class Rationale(PlutusData):
-    """Rationale for Plutus data."""
+    """Used to indicate precise fractions, such as price."""
 
     CONSTR_ID = 0
     numerator: int
@@ -77,7 +79,7 @@ class Rationale(PlutusData):
 
 @dataclass
 class RationaleWrapper(PlutusData):
-    """Wrapper for Rationale Plutus data."""
+    """A wrapper for the rationale."""
 
     CONSTR_ID = 2
     wrapper: Rationale
@@ -85,7 +87,7 @@ class RationaleWrapper(PlutusData):
 
 @dataclass
 class AxoOrderDatum(OrderDatum):
-    """Axo Order Datum."""
+    """The datum used in Axo orders."""
 
     CONSTR_ID = 0
 
@@ -95,22 +97,22 @@ class AxoOrderDatum(OrderDatum):
     parameters: dict[bytes, Union[RationaleWrapper, TimeMilliseconds]]
     variables: dict[Any, Any]
 
-    def address_source(self, block_time: int | None) -> str:
-        """Get the address source."""
-        if block_time is None:
-            raise ValueError("Block time cannot be None")
+    def address_source(self, block_time: int) -> Address:  # type: ignore
+        """Get the address source by tracing the receipt token."""
         address = get_backend().get_axo_target(
             assets=self.instance_token.assets,
             block_time=datetime.fromtimestamp(block_time),
         )
+        if address is None:
+            raise ValueError("Could not find address")
         return Address.decode(address)
 
     def order_type(self) -> OrderType:
-        """Get the order type."""
+        """For Axo, currently only swap types are allowed."""
         return OrderType.swap
 
     def requested_amount(self) -> Assets:
-        """Get the requested amount."""
+        """Total amount of token requested."""
         tokens = []
         for i, token in self.node_allocation.items():
             if len(token) == 0:
@@ -139,13 +141,13 @@ class AxoOrderDatum(OrderDatum):
 
 @dataclass
 class AxoCancelRedeemer(PlutusData):
-    """Axo Cancel Redeemer."""
+    """The cancel redeemer datum."""
 
     CONSTR_ID = 6
 
 
 class AxoOBResponse(BaseModel):
-    """Axo Order Book Response."""
+    """API response schema for Axo OB."""
 
     amount_unit: str
     amount_unit_ticker: str
@@ -163,8 +165,8 @@ class AxoOBResponse(BaseModel):
     sell_side_price: list[float]
 
 
-class AxoCreateParams(BaseModel):
-    """Axo Create Parameters."""
+class AxoCreateParams(DendriteBaseModel):
+    """API params for Axo create order."""
 
     left: str
     right: str
@@ -176,7 +178,7 @@ class AxoCreateParams(BaseModel):
 
 
 class AxoCreateResponse(BaseModel):
-    """Axo Create Response."""
+    """API response schema for Axo create order."""
 
     policy_script: str
     strat_id: str
@@ -188,7 +190,7 @@ class AxoCreateResponse(BaseModel):
     @field_validator("nft_metadata", mode="before")
     @classmethod
     def validate_metadata(cls, v: str) -> dict:
-        """Validate metadata."""
+        """Validate the API metadata by parsing the string to dict."""
         return json.loads(v)
 
     @field_validator("policy_script")
@@ -199,14 +201,14 @@ class AxoCreateResponse(BaseModel):
 
 
 class AxoCloseResponse(BaseModel):
-    """Axo Close Response."""
+    """API response schema for Axo close order."""
 
     validator_address: str
     command_datum: str
 
 
 class AxoCMCResponse(BaseModel):
-    """Axo CMC Response."""
+    """API response schema for Axo CMC price endpoint."""
 
     base_currency: str
     base_subject: str
@@ -224,7 +226,7 @@ class AxoCMCResponse(BaseModel):
 
 
 class AxoAlgoName(Enum):
-    """Axo Algorithm Names."""
+    """Axo strategy name."""
 
     limit = "Limit"
     market = "Smart Market"
@@ -232,34 +234,33 @@ class AxoAlgoName(Enum):
 
 
 class AxoAPIClient:
-    """Axo API Client."""
+    """The Axo API client class."""
 
-    def __init__(self) -> None:
-        """Initialize Axo API Client."""
-        self.headers = {"Content-Type": "application/json"}
-        if AXO_API_KEY is not None:
-            self.headers["x-api-key"] = AXO_API_KEY
+    headers: ClassVar[dict] = {
+        "x-api-key": AXO_API_KEY,
+        "Content-Type": "application/json",
+    }
 
-    network = "mainnet"
+    network: ClassVar[str] = "mainnet"
 
-    urls: ClassVar[dict[str, str]] = {
+    urls: ClassVar[dict] = {
         "mainnet": "https://api.axo.trade/",
         "preprod": "https://api.axo-preview.trade/",
     }
 
     def cmc_summary(self) -> list[AxoCMCResponse]:
-        """Get CMC summary."""
+        """Get Axo CMC data."""
         url = self.urls[self.network] + "cmc/summary"
 
         result = requests.get(url, headers=self.headers, timeout=10)
 
-        if result.status_code != HTTP_OK:
-            raise ValueError(f"API request failed: {result.status_code}: {result.text}")
+        if result.status_code == HTTPStatus.OK:
+            raise requests.HTTPError(f"{result.status_code}: {result.text}")
 
         return [AxoCMCResponse.model_validate(token) for token in result.json()]
 
     def aob(self, token_a: str, token_b: str) -> AxoOBResponse:
-        """Get AOB."""
+        """Get the Axo full order book."""
         url = self.urls[self.network] + "aob"
 
         token_a_param = "" if token_a == "lovelace" else token_a  # noqa: S105
@@ -268,17 +269,17 @@ class AxoAPIClient:
         result = requests.get(
             url,
             headers=self.headers,
-            params={"left": token_a_param, "right": token_b_param},
+            params={"left": token_a, "right": token_b},
             timeout=10,
         )
 
-        if result.status_code != HTTP_OK:
-            raise ValueError(f"API request failed: {result.status_code}: {result.text}")
+        if result.status_code == HTTPStatus.OK:
+            raise requests.HTTPError(f"{result.status_code}: {result.text}")
 
         return AxoOBResponse.model_validate(result.json())
 
     def ob(self, token_a: str, token_b: str) -> AxoOBResponse:
-        """Get OB."""
+        """Get the Axo binned OB."""
         url = self.urls[self.network] + "ob"
 
         token_a_param = "" if token_a == "lovelace" else token_a  # noqa: S105
@@ -287,17 +288,17 @@ class AxoAPIClient:
         result = requests.get(
             url,
             headers=self.headers,
-            params={"left": token_a_param, "right": token_b_param},
+            params={"left": token_a, "right": token_b},
             timeout=10,
         )
 
-        if result.status_code != HTTP_OK:
-            raise ValueError(f"API request failed: {result.status_code}: {result.text}")
+        if result.status_code == HTTPStatus.OK:
+            raise requests.HTTPError(f"{result.status_code}: {result.text}")
 
         return AxoOBResponse.model_validate(result.json())
 
     def spot(self, token_a: str, token_b: str) -> float | None:
-        """Get spot price."""
+        """Get the Axo token spot price."""
         url = self.urls[self.network] + "spot"
 
         token_a_param = "" if token_a == "lovelace" else token_a  # noqa: S105
@@ -306,12 +307,12 @@ class AxoAPIClient:
         result = requests.get(
             url,
             headers=self.headers,
-            params={"left": token_a_param, "right": token_b_param},
+            params={"left": token_a, "right": token_b},
             timeout=10,
         )
 
-        if result.status_code != HTTP_OK:
-            raise ValueError(f"API request failed: {result.status_code}: {result.text}")
+        if result.status_code == HTTPStatus.OK:
+            raise requests.HTTPError(f"{result.status_code}: {result.text}")
 
         return result.json()
 
@@ -323,7 +324,7 @@ class AxoAPIClient:
         params: AxoCreateParams,
         algo_name: AxoAlgoName = AxoAlgoName.market,
     ) -> AxoCreateResponse:
-        """Create Axo order."""
+        """Create a new order."""
         url = self.urls[self.network] + "create"
 
         result = requests.post(
@@ -339,13 +340,13 @@ class AxoAPIClient:
             timeout=10,
         )
 
-        if result.status_code != HTTP_OK:
-            raise ValueError(f"API request failed: {result.status_code}: {result.text}")
+        if result.status_code == HTTPStatus.OK:
+            requests.HTTPError(f"{result.status_code}: {result.text}")
 
         return AxoCreateResponse.model_validate(result.json())
 
     def notify(self, tx_hash: str, strat_id: str) -> requests.Response:
-        """Notify Axo of transaction."""
+        """Notify the Axo API of a transaction."""
         url = self.urls[self.network] + "notify"
 
         return requests.put(
@@ -361,7 +362,7 @@ class AxoAPIClient:
         return_address: str,
         strategy_id: str,
     ) -> AxoCloseResponse:
-        """Close Axo order."""
+        """Close an order, aka cancel it."""
         url = self.urls[self.network] + "close"
 
         result = requests.post(
@@ -430,7 +431,7 @@ class AxoOBMarketState(AbstractOrderBookState):
     @classmethod
     def pool_selector(cls) -> PoolSelector:
         """Pool selection information."""
-        return []
+        return PoolSelector(addresses=[])
 
     @property
     def swap_forward(self) -> bool:
@@ -472,8 +473,10 @@ class AxoOBMarketState(AbstractOrderBookState):
         cls,
         ob: AxoOBResponse,
     ) -> tuple[list[OrderBookOrder], list[OrderBookOrder]]:
-        """Process order book response."""
-        prices = get_token_prices(assets=[ob.left, ob.right])  # type: ignore # noqa: F821
+        # TODO: this method needs to be implemented
+        prices = get_token_prices(  # type: ignore # noqa: F821
+            assets=[ob.left, ob.right],
+        )
         left = ob.left if ob.left != "" else "lovelace"
         if prices[0].policy_id + prices[0].policy_name == left:
             token_a_decimals = prices[0].decimals
@@ -508,8 +511,8 @@ class AxoOBMarketState(AbstractOrderBookState):
         return BuyOrderBook(buy_book), SellOrderBook(sell_book)
 
     @classmethod
-    def get_book(cls, assets: Assets) -> "AxoOBMarketState":
-        """Get order book."""
+    def get_book(cls, assets: Assets) -> "AxoOBMarketState":  # type: ignore
+        """Get the Axo order book for a given set of assets."""
         aob, ob, spot = cls._client.get_ob_info(assets)
 
         if spot is None:
@@ -520,7 +523,7 @@ class AxoOBMarketState(AbstractOrderBookState):
             buy_book_full, sell_book_full = cls._process_ob(ob=ob)
         except IndexError as err:
             logger.error(f"Error getting Axo order book for assets: {assets}")
-            raise InvalidPoolError("Error processing order book") from err
+            raise InvalidPoolError from None
 
         if "lovelace" in assets:
             spot = 1.0
@@ -536,15 +539,15 @@ class AxoOBMarketState(AbstractOrderBookState):
 
     @classmethod
     def order_datum_class(cls) -> type[PlutusData]:
-        """Get order datum class."""
+        """The order datum class for Axo."""
         return AxoOrderDatum
 
     @property
     def stake_address(self) -> Address:
-        """Get stake address."""
+        """The address to submit orders to."""
         return self._stake_address
 
-    def swap_utxo(
+    def swap_utxo(  # type: ignore
         self,
         address_source: Address,
         in_assets: Assets,
@@ -554,7 +557,7 @@ class AxoOBMarketState(AbstractOrderBookState):
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
     ) -> tuple[TransactionOutput, PlutusData, UTxO]:
-        """Swap UTxO."""
+        """Create the swap UTxO, and configure the tx_builder."""
         # Basic checks
         if len(in_assets) != 1 or len(out_assets) != 1:
             raise ValueError(
@@ -564,23 +567,30 @@ class AxoOBMarketState(AbstractOrderBookState):
 
         # Get the mint input UTxO
         utxo_input = None
+        min_utxo_value = 1200000
         for utxo in tx_builder.inputs:
-            if utxo.output.amount.coin > MIN_UTXO_VALUE:  # noqa: SIM102
-                if utxo_input is None or len(utxo_input.output.to_cbor_hex()) < len(
+            if utxo.output.amount.coin > min_utxo_value and (
+                utxo_input is None
+                or len(utxo_input.output.to_cbor_hex())
+                < len(
                     utxo.output.to_cbor_hex(),
-                ):
-                    utxo_input = utxo
+                )
+            ):
+                utxo_input = utxo
 
         if utxo_input is None:
-            raise ValueError("No suitable input UTxO found")
+            raise ValueError
 
-        # Get the order build info
-        prices = get_token_prices(assets=[in_assets.unit(), out_assets.unit()])  # type: ignore # noqa: F821
+        # Get the order build
+
+        # TODO: this method needs to be implemented
+        prices = get_token_prices(  # type: ignore # noqa: F821
+            assets=[in_assets.unit(), out_assets.unit()],
+        )
         if prices[0].policy_id + prices[0].policy_name == in_assets.unit():
             in_decimals = prices[0].decimals
         else:
             in_decimals = prices[1].decimals
-
         params = AxoCreateParams(
             left=in_assets.unit() if in_assets.unit() != "lovelace" else "",
             right=out_assets.unit() if out_assets.unit() != "lovelace" else "",
@@ -658,12 +668,12 @@ class AxoOBMarketState(AbstractOrderBookState):
 
     @property
     def volume_fee(self) -> int:
-        """Get volume fee."""
+        """Fee percentage for executing trades in basis points."""
         return 10
 
     @classmethod
-    def cancel_redeemer(cls) -> PlutusData:
-        """Get cancel redeemer."""
+    def cancel_redeemer(cls) -> Redeemer:
+        """Cancel redeemer for axo market orders."""
         return Redeemer(AxoCancelRedeemer())
 
     def batcher_fee(
@@ -679,6 +689,8 @@ class AxoOBMarketState(AbstractOrderBookState):
             out_assets: The output assets for the swap
             extra_assets: Extra assets included in the transaction
         """
+        if in_assets is None or out_assets is None:
+            raise ValueError("in_assets and out_assets must be provided")
         if in_assets.unit() == "lovelace":
             fees = max(self.volume_fee * in_assets.quantity() // 10000, 1200000)
         elif out_assets.unit() == "lovelace":
@@ -722,6 +734,9 @@ class AxoOBMarketState(AbstractOrderBookState):
             in_assets: The input assets for the swap
             out_assets: The output assets for the swap
         """
+        if in_assets is None or out_assets is None:
+            raise ValueError("in_assets and out_assets must be provided")
+
         if in_assets.unit() == "lovelace":
             fees = max(self.volume_fee * in_assets.quantity() // 10000, 1200000)
         elif out_assets.unit() == "lovelace":
@@ -759,5 +774,5 @@ class AxoOBMarketState(AbstractOrderBookState):
 
     @property
     def pool_id(self) -> str:
-        """Get the pool ID."""
+        """Unique id for the Axo pair."""
         return f"{self.dex}.{self.unit_a}.{self.unit_b}"
