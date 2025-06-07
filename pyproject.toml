@@ -1,27 +1,26 @@
 [tool.poetry]
 name = "charli3_dendrite"
-version = "1.1.0-dev1"
+version = "1.1.1-dev12"
 description = ""
 authors = ["Elder Millenial <eldermillenial@protonmail.com>"]
 readme = "README.md"
-packages = [{include = "charli3_dendrite", from = "src"}]
+packages = [{ include = "charli3_dendrite", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 requests = "^2.31.0"
 pydantic = "^2.5.2"
-psycopg = {extras = ["binary", "pool"], version = "^3.1.13"}
-python-dotenv = "0.21.1"
-pycardano = "0.11.1"
-blockfrost-python = "^0.5.3"
-ogmios = "1.1.1"
+psycopg = { extras = ["binary", "pool"], version = "^3.1.13" }
+python-dotenv = "1.0.1"
+pycardano = "0.12.2"
+blockfrost-python = "^0.6.0"
+bump-my-version = "^1.1.4"
 
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.11.0"
 ruff = "^0.1.6"
 pre-commit = "^3.5.0"
-bump2version = "^1.0.1"
 isort = "^5.13.2"
 flake8 = "^6.1.0"
 mypy = "^1.7.1"
@@ -31,11 +30,9 @@ pytest-dependency = "^0.5.1"
 pytest-xdist = "^3.6.1"
 mkdocs = "^1.6.0"
 mkdocs-material = "^9.5.32"
-mkdocstrings = {extras = ["python"], version = "^0.25.2"}
+mkdocstrings = { extras = ["python"], version = "^0.25.2" }
+pytest-subtests = "^0.14.1"
 
-
-[tool.poetry.group.devs.dependencies]
-pytest-subtests = "^0.11.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -45,8 +42,42 @@ build-backend = "poetry.core.masonry.api"
 profile = "black"
 
 [tool.mypy]
-plugins = [ "pydantic.mypy"]
+plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pycardano","pycardano.*", "dotenv", "nox"]
+module = ["pycardano", "pycardano.*", "dotenv", "nox"]
 ignore_missing_imports = true
+
+[tool.bumpversion]
+current_version = "1.1.1-dev12"
+parse = """(?x)
+    (?P<major>\\d+)\\.
+    (?P<minor>\\d+)\\.
+    (?P<patch>\\d+)
+    (\\-(?P<release>[a-z]+)(?P<dev>\\d+))?
+"""
+serialize = [
+	"{major}.{minor}.{patch}-{release}{dev}",
+	"{major}.{minor}.{patch}",
+]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+tag = true
+sign_tags = false
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+allow_dirty = false
+commit = true
+message = "Bump version: {current_version} → {new_version}"
+commit_args = "--no-verify"
+
+[tool.bumpversion.parts.release]
+values = ["dev", "release"]
+optional_value = "release"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""

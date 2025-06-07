@@ -15,7 +15,9 @@ while len(subclass_walk) > 0:
 
     # If no subclasses, this is a a DEX class. Ignore MuesliCLP for now
     try:
-        if isinstance(c.dex(), str) and c.__name__ not in ["MuesliSwapCLPState"]:
+        if isinstance(c.dex(), str) and c.__name__ not in [
+            "MuesliSwapCLPState",
+        ]:
             D.append(c)
             subclass_walk.extend(subclasses)
         else:

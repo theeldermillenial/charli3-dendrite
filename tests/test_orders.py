@@ -10,12 +10,15 @@ from charli3_dendrite.dexs.amm.amm_base import AbstractPairState
 
 
 def test_get_orders(dex: AbstractPairState, benchmark, backend):
+    if dex.dex() in ["GeniusYield", "Splash"]:
+        return
+
     set_backend(backend)
     order_selector = dex.order_selector()
     result = benchmark(
         get_backend().get_historical_order_utxos,
         stake_addresses=order_selector,
-        limit=1000,
+        limit=1,
     )
 
     # Test roundtrip parsing

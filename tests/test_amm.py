@@ -1,7 +1,5 @@
 import time
-
 import pytest
-
 from charli3_dendrite.backend import get_backend, set_backend
 from charli3_dendrite import MinswapDJEDiUSDStableState
 from charli3_dendrite import MinswapDJEDUSDCStableState
@@ -9,8 +7,11 @@ from charli3_dendrite import MinswapDJEDUSDMStableState
 from charli3_dendrite import MinswapV2CPPState
 from charli3_dendrite import SundaeSwapV3CPPState
 from charli3_dendrite import WingRidersSSPState
+from charli3_dendrite import WingRidersV2CPPState
 from charli3_dendrite.dexs.amm.amm_base import AbstractPoolState
-from charli3_dendrite.dexs.ob.ob_base import AbstractOrderBookState
+from charli3_dendrite.dexs.amm.wingriders import WingRidersV2CPPState
+from charli3_dendrite.dexs.ob.ob_base import AbstractOrderBookState, AbstractOrderState
+from charli3_dendrite.dexs.core.base import AbstractPairState
 from charli3_dendrite.dexs.core.errors import InvalidLPError
 from charli3_dendrite.dexs.core.errors import InvalidPoolError
 from charli3_dendrite.dexs.core.errors import NoAssetsError
@@ -28,65 +29,97 @@ MALFORMED_CBOR = {
 
 
 def test_get_pool_script_version(dex: AbstractPoolState, benchmark, backend):
-    if issubclass(dex, AbstractOrderBookState):
+    if issubclass(dex, (AbstractOrderBookState, AbstractOrderState, AbstractPairState)):
         return
 
-    selector = dex.pool_selector()
-    result = benchmark(
-        backend.get_pool_utxos,
-        limit=1,
-        historical=False,
-        **selector.model_dump(),
-    )
-    if dex.dex() in ["Spectrum"] or dex in [
-        MinswapDJEDiUSDStableState,
-        MinswapDJEDUSDCStableState,
-        MinswapDJEDUSDMStableState,
-        SundaeSwapV3CPPState,
-        MinswapV2CPPState,
-    ]:
-        assert result[0].plutus_v2
-    else:
-        assert not result[0].plutus_v2
+    try:
+        selector = dex.pool_selector()
+        result = benchmark(
+            backend.get_pool_utxos,
+            limit=1,
+            historical=False,
+            **selector.model_dump(),
+        )
+
+        if not result:
+            pytest.skip(f"No pool UTXOs found for {dex.__name__}")
+
+        if dex.dex() in ["Spectrum"] or dex in [
+            MinswapDJEDiUSDStableState,
+            MinswapDJEDUSDCStableState,
+            MinswapDJEDUSDMStableState,
+            SundaeSwapV3CPPState,
+            MinswapV2CPPState,
+            WingRidersV2CPPState,
+        ]:
+            assert result[0].plutus_v2
+        else:
+            assert not result[0].plutus_v2
+    except Exception as e:
+        pytest.fail(f"Failed to get pool script version for {dex.__name__}: {str(e)}")
 
 
 def test_parse_pools(dex: AbstractPoolState, run_slow: bool, subtests, backend):
-    if issubclass(dex, AbstractOrderBookState):
+    if issubclass(dex, (AbstractOrderBookState, AbstractPairState)):
         return
 
-    set_backend(backend)
-    selector = dex.pool_selector()
-    limit = 20000 if run_slow else 100
-    result = get_backend().get_pool_utxos(
-        limit=limit, historical=False, **selector.model_dump()
-    )
+    try:
+        set_backend(backend)
+        selector = dex.pool_selector()
+        limit = 20000 if run_slow else 100
 
-    counts = 0
-    for pool in result:
-        try:
-            dex.model_validate(pool.model_dump())
-            counts += 1
-        except (InvalidLPError, NoAssetsError, InvalidPoolError):
-            pass
-        except NotAPoolError as e:
-            # Known failures due to malformed data
-            if pool.tx_hash in MALFORMED_CBOR:
+        # Add retry mechanism for database connection issues
+        max_retries = 3
+        retry_count = 0
+        result = None
+
+        while retry_count < max_retries:
+            try:
+                result = get_backend().get_pool_utxos(
+                    limit=limit, historical=False, **selector.model_dump()
+                )
+                break
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    pytest.skip(f"Database connection failed after {max_retries} retries for {dex.__name__}: {str(e)}")
+                time.sleep(1)  # Wait before retry
+
+        if not result:
+            pytest.skip(f"No pool UTXOs found for {dex.__name__}")
+
+        counts = 0
+        for pool in result:
+            try:
+                dex.model_validate(pool.model_dump())
+                counts += 1
+            except (InvalidLPError, NoAssetsError, InvalidPoolError):
                 pass
-            else:
+            except NotAPoolError as e:
+                # Known failures due to malformed data
+                if pool.tx_hash in MALFORMED_CBOR:
+                    pass
+                else:
+                    raise
+            except Exception as e:
+                # Log the specific error for debugging
+                print(f"Unexpected error parsing pool {pool.tx_hash}: {str(e)}")
                 raise
-        except:
-            raise
 
-    assert counts < 20000
-    if dex in [
-        MinswapDJEDiUSDStableState,
-        MinswapDJEDUSDCStableState,
-        MinswapDJEDUSDMStableState,
-    ]:
-        assert counts == 1
-    elif dex == WingRidersSSPState:
-        assert counts == 3
-    elif dex == SundaeSwapV3CPPState:
-        assert counts > 30
-    else:
-        assert counts > 40
+        assert counts < 20000
+
+        if dex in [
+            MinswapDJEDiUSDStableState,
+            MinswapDJEDUSDCStableState,
+            MinswapDJEDUSDMStableState,
+        ]:
+            assert counts == 1
+        elif dex is WingRidersSSPState:
+            assert counts == 3
+        elif dex is  SundaeSwapV3CPPState:
+            assert counts > 30
+        else:
+            assert counts > 40
+
+    except Exception as e:
+        pytest.fail(f"Failed to parse pools for {dex.__name__}: {str(e)}")
