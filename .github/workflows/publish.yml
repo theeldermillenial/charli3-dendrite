@@ -6,7 +6,7 @@ name: Build and Publish
 on:
   push:
     branches:
-      - master
+      - main
       - dev
   workflow_dispatch:
 
