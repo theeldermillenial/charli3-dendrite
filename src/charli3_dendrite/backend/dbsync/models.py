@@ -108,9 +108,10 @@ class OrderSelector(AbstractDBSyncStructure):
         """The SQL select statement for orders."""
         return """
 SELECT (
-	SELECT array_agg(DISTINCT address.address)
+	SELECT array_agg(DISTINCT add.address)
 	FROM tx_out txo
-	WHERE txo.consumed_by_tx_id = txo_stake.tx_id
+	LEFT JOIN address add ON add.id = txo.address_id
+	WHERE txo.consumed_by_tx_id = tx.id
 ) AS "submit_address_inputs",
 address.address as "submit_address_stake",
 ENCODE(tx.hash, 'hex') as "submit_tx_hash",
