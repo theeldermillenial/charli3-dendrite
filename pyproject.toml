@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "charli3_dendrite"
-version = "1.1.1-dev9"
+version = "1.1.1-dev10"
 description = ""
 authors = ["Elder Millenial <eldermillenial@protonmail.com>"]
 readme = "README.md"
@@ -78,3 +78,8 @@ commit_args = "--no-verify"
 [tool.bumpversion.parts.release]
 values = ["dev", "release"]
 optional_value = "release"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
