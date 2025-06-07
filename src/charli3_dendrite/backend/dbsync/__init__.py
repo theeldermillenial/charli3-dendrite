@@ -555,8 +555,9 @@ LIMIT 1
         utxo_selector = OrderSelector.select()
 
         utxo_selector += """FROM (
-    SELECT *
+    SELECT txo.*
     FROM tx_out txo
+    LEFT JOIN address ON txo.address_id = address.id
     WHERE address.payment_cred = ANY(%(addresses)b) AND txo.data_hash IS NOT NULL
 ) txo_stake
 LEFT JOIN tx ON tx.id = txo_stake.tx_id
@@ -580,9 +581,9 @@ LEFT JOIN (
     datum.hash as "datum_hash",
     datum.bytes as "datum_bytes"
     FROM tx_out tx_in
-    LEFT JOIN address on address.id = tx_in.address_id
     LEFT JOIN tx ON tx.id = tx_in.consumed_by_tx_id
     LEFT JOIN tx_out txo ON tx.id = txo.tx_id
+    LEFT JOIN address on address.id = txo.address_id
     LEFT JOIN block ON tx.block_id = block.id
     LEFT JOIN datum ON txo.data_hash = datum.hash
 ) txo_output ON txo_output.tx_out_id = txo_stake.tx_id
@@ -627,6 +628,10 @@ OFFSET %(offset)s"""
         )
 
         r = self.db_query(utxo_selector, values)
+
+        import pprint
+
+        pprint.pprint(r, indent=4)
 
         return OrderSelector.parse(r)
 

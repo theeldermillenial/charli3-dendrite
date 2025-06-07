@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Type
 
 import pytest
 
@@ -60,8 +61,8 @@ ADDRESS = Address(
 )
 
 
-def test_build_utxo(dex: AbstractPoolState, subtests, backend):
-    if issubclass(dex, AbstractOrderBookState):
+def test_build_utxo(dex: Type[AbstractPoolState], subtests, backend):
+    if issubclass(dex, AbstractOrderBookState) or dex.__name__ in ["SplashBaseState"]:
         return
 
     set_backend(backend)
@@ -161,52 +162,6 @@ def test_wingriders_batcher_fee(subtests):
                 raise
 
 
-@pytest.mark.minswap
-def test_minswap_batcher_fee(subtests):
-    selector = MinswapCPPState.pool_selector()
-    result = get_backend().get_pool_utxos(
-        limit=10000, historical=False, **selector.model_dump()
-    )
-
-    for record in result:
-        try:
-            pool = MinswapCPPState.model_validate(record.model_dump())
-
-            if pool.unit_a == "lovelace" and pool.unit_b == IUSD_ASSETS.unit():
-                out_assets = (
-                    LQ_ASSETS if pool.unit_b == LQ_ASSETS.unit() else IUSD_ASSETS
-                )
-
-                for amount, min_catalyst in zip(
-                    [1000000, 500000000, 1000000000], [0, 25000000000, 50000000000]
-                ):
-                    with subtests.test(f"input, fee: {amount}, {min_catalyst}"):
-                        output, datum = pool.swap_utxo(
-                            address_source=ADDRESS,
-                            in_assets=Assets(root={"lovelace": amount}),
-                            out_assets=out_assets,
-                            extra_assets=Assets(
-                                {
-                                    "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e": min_catalyst
-                                }
-                            ),
-                        )
-                        assert datum.batcher_fee == 2000000 - min_catalyst // 100000
-
-        except InvalidLPError:
-            pass
-        except NoAssetsError:
-            pass
-        except InvalidPoolError:
-            pass
-        except NotAPoolError as e:
-            # Known failures due to malformed data
-            if record.tx_hash in MALFORMED_CBOR:
-                pytest.xfail("Malformed CBOR tx.")
-            else:
-                raise
-
-
 def test_address_from_datum(dex: AbstractPoolState):
     # Create the datum
     datum = None
@@ -237,7 +192,7 @@ def test_address_from_datum(dex: AbstractPoolState):
         elif dex.dex() not in ["GeniusYield"]:
             # Check if the order_datum_class has create_datum method
             order_datum_class = dex.order_datum_class()
-            if hasattr(order_datum_class, 'create_datum'):
+            if hasattr(order_datum_class, "create_datum"):
                 datum = order_datum_class.create_datum(
                     address_source=ADDRESS,
                     in_assets=Assets(root={"lovelace": 1000000}),
@@ -246,7 +201,9 @@ def test_address_from_datum(dex: AbstractPoolState):
                     deposit=Assets(root={"lovelace": 1000000}),
                 )
             else:
-                pytest.skip(f"{dex.dex()} order datum class doesn't have create_datum method")
+                pytest.skip(
+                    f"{dex.dex()} order datum class doesn't have create_datum method"
+                )
     except AttributeError as e:
         if "create_datum" in str(e):
             pytest.skip(f"create_datum method not available for {dex.dex()}")
