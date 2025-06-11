@@ -13,14 +13,17 @@ from charli3_dendrite.dexs.amm.sundae import SundaeSwapCPPState
 @pytest.fixture(scope="module")
 def ogmios_kupo_backend() -> OgmiosKupoBackend:
     """Fixture to set up and return an Ogmios-Kupo backend instance."""
-    ogmios_url = os.environ.get("OGMIOS_URL")
-    kupo_url = os.environ.get("KUPO_URL")
+    ogmios_url = os.environ.get("OGMIOS_URL", "")
+    kupo_url = os.environ.get("KUPO_URL", "")
+    path = os.environ.get("OGMIOS_PATH", "")
+
     if not ogmios_url or not kupo_url:
         pytest.skip("OGMIOS_URL or KUPO_URL environment variable not set")
     backend = OgmiosKupoBackend(
         ogmios_url=ogmios_url,
         kupo_url=kupo_url,
         network=Network.MAINNET,
+        path=path,
     )
     set_backend(backend)
     return backend
