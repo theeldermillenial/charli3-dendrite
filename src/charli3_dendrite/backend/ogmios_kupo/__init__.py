@@ -42,6 +42,7 @@ class OgmiosKupoBackend(AbstractBackend):
         ogmios_url: str,
         kupo_url: str,
         network: Network,
+        path: str = "",
     ) -> None:
         """Initialize the OgmiosKupoBackend.
 
@@ -55,6 +56,7 @@ class OgmiosKupoBackend(AbstractBackend):
         self.ogmios_context = KupoOgmiosV6ChainContext(
             host=self.ws_url,
             port=int(self.port),
+            path=path,
             secure=False,
             refetch_chain_tip_interval=None,
             network=network,
