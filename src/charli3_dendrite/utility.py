@@ -1,9 +1,12 @@
 """Utility functions for handling asset information."""
+
 import json
 from datetime import datetime
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
+from fractions import Fraction
+from typing import Tuple
 
 import requests
 from pycardano import Value
@@ -13,6 +16,164 @@ from charli3_dendrite.dataclasses.models import Assets
 ASSET_PATH = Path(__file__).parent.joinpath(".assets")
 
 ASSET_PATH.mkdir(parents=True, exist_ok=True)
+
+# === DJED/SHEN MATHEMATICAL UTILITIES ===
+
+
+class DjedRational:
+    """High-precision rational number implementation for Djed stablecoin calculations.
+
+    Uses Python's Fraction class internally to ensure exact arithmetic without
+    floating-point precision errors. Critical for financial calculations where
+    precision matters.
+    """
+
+    def __init__(self, numerator: int, denominator: int = 1):
+        """Initialize a rational number.
+
+        Args:
+            numerator: The numerator of the rational number
+            denominator: The denominator of the rational number
+
+        Raises:
+            ValueError: If denominator is zero
+        """
+        if denominator == 0:
+            raise ValueError("Denominator cannot be zero")
+        self.fraction = Fraction(numerator, denominator)
+
+    @classmethod
+    def from_tuple(cls, rational_tuple: Tuple[int, int]) -> "DjedRational":
+        """Create DjedRational from (numerator, denominator) tuple.
+
+        Args:
+            rational_tuple: Tuple of (numerator, denominator)
+
+        Returns:
+            DjedRational instance
+        """
+        return cls(rational_tuple[0], rational_tuple[1])
+
+    def mul(self, other: "DjedRational") -> "DjedRational":
+        """Multiply this rational with another.
+
+        Args:
+            other: Another DjedRational instance
+
+        Returns:
+            New DjedRational with the product
+        """
+        result = self.fraction * other.fraction
+        return DjedRational(result.numerator, result.denominator)
+
+    def div(self, other: "DjedRational") -> "DjedRational":
+        """Divide this rational by another.
+
+        Args:
+            other: Another DjedRational instance
+
+        Returns:
+            New DjedRational with the quotient
+
+        Raises:
+            ValueError: If dividing by zero
+        """
+        if other.fraction == 0:
+            raise ValueError("Division by zero")
+        result = self.fraction / other.fraction
+        return DjedRational(result.numerator, result.denominator)
+
+    def add(self, other: "DjedRational") -> "DjedRational":
+        """Add another rational to this one.
+
+        Args:
+            other: Another DjedRational instance
+
+        Returns:
+            New DjedRational with the sum
+        """
+        result = self.fraction + other.fraction
+        return DjedRational(result.numerator, result.denominator)
+
+    def sub(self, other: "DjedRational") -> "DjedRational":
+        """Subtract another rational from this one.
+
+        Args:
+            other: Another DjedRational instance
+
+        Returns:
+            New DjedRational with the difference
+        """
+        result = self.fraction - other.fraction
+        return DjedRational(result.numerator, result.denominator)
+
+    def invert(self) -> "DjedRational":
+        """Return multiplicative inverse (1/x).
+
+        Returns:
+            New DjedRational with inverted value
+
+        Raises:
+            ValueError: If trying to invert zero
+        """
+        if self.fraction == 0:
+            raise ValueError("Cannot invert zero")
+        return DjedRational(self.fraction.denominator, self.fraction.numerator)
+
+    def to_int(self, rounding: str = "ROUND_DOWN") -> int:
+        """Convert to integer with specified rounding.
+
+        Args:
+            rounding: Rounding method ('ROUND_UP' or 'ROUND_DOWN')
+
+        Returns:
+            Integer representation
+        """
+        from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, getcontext
+
+        # Set high precision for financial calculations
+        getcontext().prec = 50
+
+        decimal_val = Decimal(str(self.fraction))
+        if rounding == "ROUND_UP":
+            return int(decimal_val.quantize(Decimal("1"), rounding=ROUND_CEILING))
+        else:  # ROUND_DOWN (default)
+            return int(decimal_val.quantize(Decimal("1"), rounding=ROUND_FLOOR))
+
+    def to_tuple(self) -> Tuple[int, int]:
+        """Convert to (numerator, denominator) tuple for Plutus data.
+
+        Returns:
+            Tuple of (numerator, denominator)
+        """
+        return (self.fraction.numerator, self.fraction.denominator)
+
+    def to_float(self) -> float:
+        """Convert to float for display purposes only.
+
+        Note: Should not be used for calculations due to precision loss.
+
+        Returns:
+            Float representation
+        """
+        return float(self.fraction)
+
+    def __str__(self) -> str:
+        """String representation."""
+        return f"{self.fraction.numerator}/{self.fraction.denominator}"
+
+    def __repr__(self) -> str:
+        """Debug representation."""
+        return f"DjedRational({self.fraction.numerator}, {self.fraction.denominator})"
+
+    def __eq__(self, other) -> bool:
+        """Equality comparison."""
+        if isinstance(other, DjedRational):
+            return self.fraction == other.fraction
+        return False
+
+
+# === EXISTING UTILITY FUNCTIONS ===
 
 
 def asset_info(unit: str, update: bool = False) -> dict:  # noqa: ARG001
