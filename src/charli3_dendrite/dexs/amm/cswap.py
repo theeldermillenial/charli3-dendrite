@@ -53,7 +53,7 @@ class CSwapOrderDatum(OrderDatum):
     address: PlutusFullAddress  # Field 0: Complex address structure
     target_assets: List[List[Union[bytes, int]]]
     input_assets: List[List[Union[bytes, int]]]
-    order_type: Union[CSwapOrderSwapType | CSwapOrderZapInType | CSwapOrderZapOutType]
+    otype: Union[CSwapOrderSwapType | CSwapOrderZapInType | CSwapOrderZapOutType]
     slippage: int = 50
     platform_fee: int = 15
 
@@ -104,7 +104,7 @@ class CSwapOrderDatum(OrderDatum):
             address=full_address,
             target_assets=target_assets,
             input_assets=input_assets,
-            order_type=CSwapOrderSwapType(),
+            otype=CSwapOrderSwapType(),
             slippage=50,  # 0.5% default slippage
             platform_fee=15,  # 0.15% platform fee
         )
