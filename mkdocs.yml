@@ -51,14 +51,16 @@ nav:
   - Home: index.md
   - DEXs:
       - Automated Market Maker:
+          - CSwap: cswap.md
           - Vyfi: vyfi.md
           - Minswap: minswap.md
           - Muesliswap: muesliswap.md
           - Spectrum: spectrum.md
+          - Splash: splash.md
           - Sundae: sundae.md
           - Wingriders: wingriders.md
       - Order Book:
-          - Axo: axo.md
+          - Axo (DEPRECATED): axo.md
           - Genius Yield: geniusyield.md
       - Core:
           - core_base.md
