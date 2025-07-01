@@ -15,7 +15,7 @@ Charli3 Dendrite is a powerful Python SDK designed for seamless interaction with
 
 ## Key Features
 
-- 🔄 Multi-DEX Support: Integrate with Minswap, MuesliSwap, Spectrum, SundaeSwap, VyFi, GeniusYield, Splash, and WingRiders
+- 🔄 Multi-DEX Support: Integrate with CSwap, Minswap, MuesliSwap, Spectrum, SundaeSwap, VyFi, GeniusYield, Splash, and WingRiders
 - 💧 Liquidity Pool Data: Fetch and analyze pool information across different DEXs
 - 💱 Swap Operations: Execute token swaps with ease
 - 🧩 Flexible Asset Handling: Manage various asset types and pool states efficiently
@@ -44,6 +44,7 @@ Charli3 Dendrite currently supports the following Cardano DEXs:
 - WingRiders
 - GeniusYield
 - Splash
+- CSwap
 
 ### Deprecated DEXs
 
@@ -52,7 +53,6 @@ Charli3 Dendrite currently supports the following Cardano DEXs:
 ### Not Yet Implemented
 
 - CardanoSwaps
-- CSwap
 - Cerra
 - SaturnSwap
 
