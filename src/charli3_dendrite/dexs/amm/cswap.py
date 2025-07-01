@@ -50,17 +50,12 @@ class CSwapOrderDatum(OrderDatum):
 
     CONSTR_ID = 0
 
-    # Fields MUST be in exact order per cswap.md specification
     address: PlutusFullAddress  # Field 0: Complex address structure
-    target_assets: list[
-        list[bytes | int]
-    ]  # Field 1: [[policy, name, quantity], [policy, name, quantity]]
-    input_assets: list[list[bytes | int]]  # Field 2: [[policy, name, 0]]
-    order_type: (
-        CSwapOrderSwapType | CSwapOrderZapInType | CSwapOrderZapOutType
-    )  # Field 3: Order type
-    slippage: int = 50  # Field 4: Slippage per 10K
-    platform_fee: int = 15  # Field 5: Platform fee per 10K
+    target_assets: List[List[Union[bytes, int]]]
+    input_assets: List[List[Union[bytes, int]]]
+    order_type: Union[CSwapOrderSwapType | CSwapOrderZapInType | CSwapOrderZapOutType]
+    slippage: int = 50
+    platform_fee: int = 15
 
     @classmethod
     def create_datum(
