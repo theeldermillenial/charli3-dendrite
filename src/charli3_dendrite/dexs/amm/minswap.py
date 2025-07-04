@@ -426,11 +426,21 @@ class WithdrawImbalanceV2(PlutusData):
 
 
 @dataclass
+class Route(PlutusData):
+    """Route."""
+
+    CONSTR_ID = 0
+
+    pool: AssetClass
+    a_to_b_direction: Union[BoolTrue, BoolFalse]
+
+
+@dataclass
 class SwapMultiRoutingV2(PlutusData):
     """SwapMultiRoutingV2 order datum."""
 
     CONSTR_ID = 9
-    routings: List[Datum]
+    routings: List[Route]
     swap_amount_option: Union[SAOSpecificAmount, SAOAll]
     minimum_receive: int
 
