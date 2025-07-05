@@ -426,11 +426,21 @@ class WithdrawImbalanceV2(PlutusData):
 
 
 @dataclass
+class Route(PlutusData):
+    """Route."""
+
+    CONSTR_ID = 0
+
+    pool: AssetClass
+    a_to_b_direction: Union[BoolTrue, BoolFalse]
+
+
+@dataclass
 class SwapMultiRoutingV2(PlutusData):
     """SwapMultiRoutingV2 order datum."""
 
     CONSTR_ID = 9
-    routings: List[Datum]
+    routings: List[Route]
     swap_amount_option: Union[SAOSpecificAmount, SAOAll]
     minimum_receive: int
 
@@ -1248,6 +1258,7 @@ class MinswapiUSDUSDMStableState(MinswapDJEDiUSDStableState):
 
 
 class MinswapUSDAUSDMStableState(MinswapDJEDiUSDStableState):
+    fee: float = 5
     _stake_address: ClassVar[Address] = [
         Address.from_primitive(
             "addr1w8cafpjmeer4j8t8aseqayhwkf4ezuufue0clvfthxecsacv83rt0",
@@ -1275,6 +1286,7 @@ class MinswapUSDAUSDMStableState(MinswapDJEDiUSDStableState):
 
 
 class MinswapiUSDUSDCStableState(MinswapDJEDiUSDStableState):
+    fee: float = 10
     asset_mulitipliers: ClassVar[list[int]] = [1, 100]
 
     _stake_address: ClassVar[Address] = [
