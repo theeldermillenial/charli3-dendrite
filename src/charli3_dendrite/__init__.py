@@ -22,6 +22,10 @@ from charli3_dendrite.dexs.amm.wingriders import WingRidersV2CPPState
 from charli3_dendrite.dexs.amm.wingriders import WingRidersV2SSPState
 from charli3_dendrite.dexs.ob.geniusyield import GeniusYieldOrderBook
 from charli3_dendrite.dexs.ob.geniusyield import GeniusYieldOrderState
+from charli3_dendrite.dexs.ob.djed import DjedOrderBook
+from charli3_dendrite.dexs.ob.djed import DjedOrderState
+from charli3_dendrite.dexs.ob.djed import ShenOrderBook
+from charli3_dendrite.dexs.ob.djed import ShenOrderState
 from charli3_dendrite.utility import Assets
 
 # from charli3_dendrite.dexs.ob.axo import AxoOBMarketState

@@ -19,6 +19,7 @@ from pycardano import TransactionId
 from pycardano import TransactionInput
 from pycardano import TransactionOutput
 from pycardano import UTxO
+from pycardano.serialization import ByteString
 
 from charli3_dendrite.backend import get_backend
 from charli3_dendrite.dataclasses.datums import OrderDatum
@@ -42,6 +43,82 @@ class DjedRationalDatum(PlutusData):
     CONSTR_ID = 0
     numerator: int
     denominator: int
+
+
+@dataclass
+class OracleExchangeRate(PlutusData):
+    """Oracle exchange rate structure (ADA/USD)."""
+
+    CONSTR_ID = 0
+    denominator: int
+    numerator: int
+
+
+@dataclass
+class OracleValidityBoundValue(PlutusData):
+    """Oracle validity bound value."""
+
+    CONSTR_ID = 0
+    value: int
+
+
+@dataclass
+class OracleValidityBoundEmpty(PlutusData):
+    """Oracle validity bound empty case."""
+
+    CONSTR_ID = 1
+
+
+@dataclass
+class OracleValidityBound(PlutusData):
+    """Oracle validity bound tuple."""
+
+    CONSTR_ID = 0
+    bound_type: Union[OracleValidityBoundEmpty, OracleValidityBoundValue]
+    nullable_data: Union[PlutusData, OracleValidityBoundEmpty]
+
+
+@dataclass
+class OracleValidityRange(PlutusData):
+    """Oracle validity range with lower and upper bounds."""
+
+    CONSTR_ID = 0
+    lower_bound: OracleValidityBound
+    upper_bound: OracleValidityBound
+
+
+@dataclass
+class OracleFields(PlutusData):
+    """Oracle fields containing exchange rate, validity range, and expression."""
+
+    CONSTR_ID = 0
+    ada_usd_exchange_rate: OracleExchangeRate
+    validity_range: OracleValidityRange
+    expressed_in: ByteString
+
+
+@dataclass
+class OracleDatum(PlutusData):
+    """Complete Oracle datum structure following JavaScript reference."""
+
+    CONSTR_ID = 0
+    uid: bytes  # Unknown field from JS reference
+    oracle_fields: OracleFields
+    oracle_token_policy_id: ByteString
+
+    def get_exchange_rate(self) -> DjedRationalDatum:
+        """Extract the ADA/USD exchange rate as a DjedRationalDatum."""
+        return DjedRationalDatum(
+            numerator=self.oracle_fields.ada_usd_exchange_rate.numerator,
+            denominator=self.oracle_fields.ada_usd_exchange_rate.denominator,
+        )
+
+    def get_ada_price_in_usd(self) -> float:
+        """Get the ADA price in USD as a float for display purposes."""
+        return (
+            self.oracle_fields.ada_usd_exchange_rate.numerator
+            / self.oracle_fields.ada_usd_exchange_rate.denominator
+        )
 
 
 @dataclass
@@ -128,6 +205,65 @@ class DjedOrderDatum(OrderDatum):
         else:
             return OrderType.swap  # Burning = swap operation
 
+    @classmethod
+    def _get_oracle_utxo(cls) -> UTxO:
+        """Get oracle UTxO using backend (shared by both Djed and Shen)."""
+        oracle_utxos = get_backend().get_pool_utxos(
+            addresses=[
+                "addr1wxyc99q448xlkv4q2y3truxq7j2msr6hkqqg0wmzz9n9r6q8j7kpa"
+            ],  # Replace with actual
+            assets=[
+                "815aca02042ba9188a2ca4f8ce7b276046e2376b4bce56391342299e446a65644f7261636c654e4654"
+            ],  # Replace with actual
+            limit=1,
+            historical=False,
+        )
+        if not oracle_utxos:
+            raise RuntimeError("Oracle UTxO not found")
+
+        oracle_info = oracle_utxos[0]
+
+        # Parse the oracle datum from the CBOR data
+        oracle_datum = None
+        if oracle_info.datum_cbor:
+            oracle_datum = OracleDatum.from_cbor(oracle_info.datum_cbor)
+
+        return UTxO(
+            input=TransactionInput(
+                TransactionId(bytes.fromhex(oracle_info.tx_hash)),
+                index=oracle_info.tx_index,
+            ),
+            output=TransactionOutput(
+                address=Address.decode(oracle_info.address),
+                amount=asset_to_value(oracle_info.assets),
+                datum=oracle_datum,
+            ),
+        )
+
+    @classmethod
+    def create_datum(
+        cls,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        batcher_fee: Assets,
+        deposit: Assets,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ):
+
+        owner_address = PlutusFullAddress.from_address(address_source)
+        oracle_utxo = cls._get_oracle_utxo()
+        oracle_rate = oracle_utxo.output.datum.get_exchange_rate()
+        creation_time = int((time.time() + 3 * 60) * 1000)  # 3 minutes in ms
+
+        return cls(
+            action=DjedMintAction(
+                djed_amount=in_assets.quantity(), ada_amount=out_assets.quantity()
+            ),
+            owner_address=owner_address,
+        )
+
 
 # === SHARED BASE CLASS FOR COMMON FUNCTIONALITY ===
 
@@ -206,29 +342,6 @@ class DjedShenOrderStateBase(AbstractOrderState):
             output=TransactionOutput(
                 address=Address.decode(pool_info.address),
                 amount=asset_to_value(pool_info.assets),
-            ),
-        )
-
-    def _get_oracle_utxo(self) -> UTxO:
-        """Get oracle UTxO using backend (shared by both Djed and Shen)."""
-        oracle_utxos = get_backend().get_pool_utxos(
-            addresses=["djed_oracle_address_placeholder"],  # Replace with actual
-            assets=["djed_oracle_nft_placeholder"],  # Replace with actual
-            limit=1,
-            historical=False,
-        )
-        if not oracle_utxos:
-            raise RuntimeError("Oracle UTxO not found")
-
-        oracle_info = oracle_utxos[0]
-        return UTxO(
-            input=TransactionInput(
-                TransactionId(bytes.fromhex(oracle_info.tx_hash)),
-                index=oracle_info.tx_index,
-            ),
-            output=TransactionOutput(
-                address=Address.decode(oracle_info.address),
-                amount=asset_to_value(oracle_info.assets),
             ),
         )
 
@@ -356,58 +469,6 @@ class DjedOrderState(DjedShenOrderStateBase):
 
         djed_rational = DjedRational(djed_amount, 1)
         return final_rate.mul(djed_rational).to_int("ROUND_DOWN")
-
-    def swap_utxo(
-        self,
-        address_source: Address,
-        in_assets: Assets,
-        out_assets: Assets,
-        tx_builder: TransactionBuilder,
-        extra_assets: Assets | None = None,
-        address_target: Address | None = None,
-        datum_target: PlutusData | None = None,
-    ) -> tuple[TransactionOutput | None, PlutusData]:
-        """Build transaction for Djed order processing."""
-
-        # Get reference UTxOs (using shared methods)
-        pool_utxo = self._get_pool_utxo()
-        oracle_utxo = self._get_oracle_utxo()
-
-        # Add order UTxO as script input (following GeniusYield pattern)
-        assets = self.assets + Assets(**{self.dex_nft.unit(): 1})
-        order_utxo = UTxO(
-            TransactionInput(
-                transaction_id=TransactionId(bytes.fromhex(self.tx_hash)),
-                index=self.tx_index,
-            ),
-            output=TransactionOutput(
-                address=Address.decode(self.address),
-                amount=asset_to_value(assets),
-                datum_hash=self.order_datum.hash(),
-            ),
-        )
-
-        # Add script input with redeemer
-        if out_assets.quantity() < self.available.quantity():
-            redeemer = Redeemer(self._get_partial_redeemer(out_assets))
-        else:
-            redeemer = Redeemer(self._get_complete_redeemer())
-
-        tx_builder.add_script_input(
-            utxo=order_utxo,
-            script=self.reference_utxo,
-            redeemer=redeemer,
-        )
-
-        # Add reference inputs
-        tx_builder.reference_inputs.add(pool_utxo)
-        tx_builder.reference_inputs.add(oracle_utxo)
-
-        # Process based on Djed operation type
-        if isinstance(self.order_datum.action, DjedMintAction):
-            return self._process_djed_mint(tx_builder, in_assets, out_assets, pool_utxo)
-        else:  # DjedBurnAction
-            return self._process_djed_burn(tx_builder, in_assets, out_assets, pool_utxo)
 
     def _process_djed_mint(
         self,
@@ -774,6 +835,77 @@ class DjedShenOrderBookBase(AbstractOrderBookState):
     def stake_address(self) -> Address | None:
         """Return the staking address."""
         return None
+
+    def swap_utxo(
+        self,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        tx_builder: TransactionBuilder,
+        extra_assets: Assets | None = None,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ) -> tuple[TransactionOutput | None, PlutusData]:
+        """Execute swap across multiple orders in the order book.
+
+        This method orchestrates swaps across multiple orders in the order book,
+        following the GeniusYield pattern for order book DEX implementations.
+        """
+        # Determine which book to use based on input assets
+        if in_assets.unit() == self.assets.unit():
+            book = self.sell_book_full
+        else:
+            book = self.buy_book_full
+
+        in_total = Assets.model_validate(in_assets.model_dump())
+        fee_txo: TransactionOutput | None = None
+        fee_datum: PlutusData | None = None
+        txo: TransactionOutput | None = None
+        datum = None
+
+        # Process orders in the book
+        for order in book:
+            if txo is not None:
+                # Accumulate multiple order outputs
+                if fee_txo is None:
+                    fee_txo = txo
+                    fee_datum = datum
+                else:
+                    fee_txo.amount += txo.amount
+                    tx_builder._minting_script_to_redeemers.pop()
+
+            state = order.state
+
+            # Calculate amounts for this order
+            order_out, _ = state.get_amount_out(in_total)
+            order_in, _ = state.get_amount_in(order_out)
+
+            # Execute swap for this order
+            txo, datum = state.swap_utxo(
+                address_source=address_source,
+                in_assets=order_in,
+                out_assets=order_out,
+                tx_builder=tx_builder,
+            )
+
+            # Handle fee deduction (2 ADA operator fee)
+            if fee_txo is not None:
+                txo.amount.coin -= 2_000_000  # 2 ADA fee
+
+            in_total -= order_in
+
+            # Break if we've processed enough input
+            if in_total.quantity() <= state.price[0] / state.price[1]:
+                break
+
+        # Handle final fee accumulation
+        if fee_txo is not None:
+            fee_txo.amount += txo.amount
+            tx_builder._minting_script_to_redeemers.pop()
+            txo = fee_txo
+            datum = fee_datum
+
+        return txo, datum
 
 
 # === DJED ORDER BOOK ===
