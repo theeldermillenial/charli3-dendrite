@@ -352,14 +352,14 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         if len(assets) == 2:
             assets.root["lovelace"] -= 2000000  # 2 ADA maintenance
 
-        # Parse datum if available
+        # Parse datum if available, add in 15 basis points for platform fee
         if "datum_cbor" in values:
             try:
                 datum = CSwapPoolDatum.from_cbor(values["datum_cbor"])
-                values["fee"] = datum.pool_fee
+                values["fee"] = datum.pool_fee + 15
             except Exception:
                 # If datum parsing fails, use default fee
-                values["fee"] = 85
+                values["fee"] = 85 + 15
 
         return values
 
