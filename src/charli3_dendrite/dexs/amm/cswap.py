@@ -11,7 +11,8 @@ from pycardano import Address
 from pycardano import PlutusData
 from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
-from pycardano import VerificationKeyHash
+from pycardano import PlutusV3Script
+from pycardano import Redeemer
 
 from charli3_dendrite.dataclasses.datums import OrderDatum
 from charli3_dendrite.dataclasses.datums import PlutusFullAddress
@@ -361,6 +362,13 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         return values
 
     @classmethod
-    def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
-        """Get default script class as Plutus V2."""
-        return PlutusV2Script
+    def default_script_class(
+        cls,
+    ) -> type[PlutusV1Script] | type[PlutusV2Script] | type[PlutusV3Script]:
+        """Get default script class as Plutus V3."""
+        return PlutusV3Script
+
+    @classmethod
+    def cancel_redeemer(cls) -> PlutusData:
+        """Returns the redeemer data for canceling transaction."""
+        return Redeemer(CSwapOrderSwapType())
