@@ -14,6 +14,7 @@ from charli3_dendrite.dexs.amm.spectrum import SpectrumCPPState
 from charli3_dendrite.dexs.amm.splash import SplashCPPBidirState
 from charli3_dendrite.dexs.amm.splash import SplashCPPState
 from charli3_dendrite.dexs.amm.splash import SplashSSPState
+from charli3_dendrite.dexs.amm.splash import SplashCPPRoyaltyState
 from charli3_dendrite.dexs.amm.sundae import SundaeSwapCPPState
 from charli3_dendrite.dexs.amm.sundae import SundaeSwapV3CPPState
 from charli3_dendrite.dexs.amm.vyfi import VyFiCPPState
