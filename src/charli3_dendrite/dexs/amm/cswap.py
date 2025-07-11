@@ -11,7 +11,8 @@ from pycardano import Address
 from pycardano import PlutusData
 from pycardano import PlutusV1Script
 from pycardano import PlutusV2Script
-from pycardano import VerificationKeyHash
+from pycardano import PlutusV3Script
+from pycardano import Redeemer
 
 from charli3_dendrite.dataclasses.datums import OrderDatum
 from charli3_dendrite.dataclasses.datums import PlutusFullAddress
@@ -72,7 +73,7 @@ class CSwapOrderDatum(OrderDatum):
         # Validate ADA-only restriction
         merged_assets = in_assets + out_assets
         if "lovelace" not in merged_assets:
-            raise ValueError("CSwap only supports ADA pairs - one token must be ADA")
+            raise ValueError("CSWAP only supports ADA pairs - one token must be ADA")
 
         full_address = PlutusFullAddress.from_address(address_source)
 
@@ -136,7 +137,6 @@ class CSwapPoolDatum(PoolDatum):
 
     CONSTR_ID = 0
 
-    # Fields MUST be in exact order per cswap.md specification
     total_lp_tokens: int  # Field 0: total lp tokens issued
     pool_fee: int  # Field 1: pool fee per 10K (85 = 0.85%)
     quote_policy: bytes  # Field 2: quote policy id - ADA (empty)
@@ -153,8 +153,6 @@ class CSwapPoolDatum(PoolDatum):
         if not base_unit:
             base_unit = "lovelace"
 
-        # For CSwap, we can't determine quantities from datum alone
-        # This will be filled by post_init
         return Assets(**{quote_unit: 0, base_unit: 0})
 
 
@@ -171,7 +169,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
     @classmethod
     def dex(cls) -> str:
         """Get the DEX name."""
-        return "CSwap"
+        return "CSWAP"
 
     @classmethod
     def order_selector(cls) -> list[str]:
@@ -233,12 +231,12 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         if "pool_nft" in values:
             pool_nft = Assets(**dict(values["pool_nft"].items()))
             if pool_nft.quantity() != 1:
-                raise NotAPoolError("CSwap pool NFT must have quantity of exactly 1")
+                raise NotAPoolError("CSWAP pool NFT must have quantity of exactly 1")
 
             # Check if token name is "c" (hex: 63)
             unit = pool_nft.unit()
             if len(unit) < 56 or unit[56:] != "63":  # "c" in hex
-                raise NotAPoolError("CSwap pool NFT must have name 'c'")
+                raise NotAPoolError("CSWAP pool NFT must have name 'c'")
 
             return pool_nft
 
@@ -258,7 +256,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
 
         if pool_nft is None:
             raise NotAPoolError(
-                "CSwap pool must contain exactly one pool NFT with name 'c'"
+                "CSWAP pool must contain exactly one pool NFT with name 'c'"
             )
 
         values["pool_nft"] = pool_nft
@@ -275,7 +273,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         """
         # Validate ADA-only restriction
         if "lovelace" not in [self.unit_a, self.unit_b]:
-            raise ValueError("CSwap only supports ADA pairs - one token must be ADA")
+            raise ValueError("CSWAP only supports ADA pairs - one token must be ADA")
 
         if asset.unit() not in [self.unit_a, self.unit_b]:
             raise ValueError(f"Asset {asset.unit()} not valid for this pool")
@@ -286,7 +284,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         # Ensure one of the pair assets is ADA
         merged_test = Assets(**{asset.unit(): 1, "lovelace": 1})
         if not any(unit in [self.unit_a, self.unit_b] for unit in merged_test):
-            raise ValueError("CSwap only supports ADA pairs")
+            raise ValueError("CSWAP only supports ADA pairs")
 
         return super().get_amount_out(asset, precise)
 
@@ -301,7 +299,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         """
         # Validate ADA-only restriction
         if "lovelace" not in [self.unit_a, self.unit_b]:
-            raise ValueError("CSwap only supports ADA pairs - one token must be ADA")
+            raise ValueError("CSWAP only supports ADA pairs - one token must be ADA")
 
         if asset.unit() not in [self.unit_a, self.unit_b]:
             raise ValueError(f"Asset {asset.unit()} not valid for this pool")
@@ -345,7 +343,7 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         # Validate this is an ADA pair
         asset_units = list(assets.root.keys())
         if "lovelace" not in asset_units:
-            raise NotAPoolError("CSwap pools must contain ADA (lovelace)")
+            raise NotAPoolError("CSWAP pools must contain ADA (lovelace)")
 
         # Subtract 2 ADA pool maintenance from lovelace reserves
         # CSwap pools require 2 ADA minimum to maintain the pool
@@ -364,6 +362,13 @@ class CSwapCPPState(AbstractConstantProductPoolState):
         return values
 
     @classmethod
-    def default_script_class(cls) -> type[PlutusV1Script] | type[PlutusV2Script]:
-        """Get default script class as Plutus V2."""
-        return PlutusV2Script
+    def default_script_class(
+        cls,
+    ) -> type[PlutusV1Script] | type[PlutusV2Script] | type[PlutusV3Script]:
+        """Get default script class as Plutus V3."""
+        return PlutusV3Script
+
+    @classmethod
+    def cancel_redeemer(cls) -> PlutusData:
+        """Returns the redeemer data for canceling transaction."""
+        return Redeemer(CSwapOrderSwapType())
