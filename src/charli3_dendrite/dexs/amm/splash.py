@@ -1,6 +1,6 @@
 """Minswap DEX Module."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from random import choice
 from string import hexdigits
 from typing import Any
@@ -73,9 +73,11 @@ class SplashOrderDatum(OrderDatum):
     fee: int
     redeemer_address: PlutusFullAddress
     cancel_pkh: bytes
-    permitted_executors: List[bytes] = [
-        b"\\\xb2\xc9h\xe5\xd1\xc7\x19zl\xe7aYg1\n7UE\xd9\xbce\x06:\x96C5\xb2"
-    ]
+    permitted_executors: List[bytes] = field(
+        default_factory=lambda: [
+            b"\\\xb2\xc9h\xe5\xd1\xc7\x19zl\xe7aYg1\n7UE\xd9\xbce\x06:\x96C5\xb2"
+        ]
+    )
 
     def address_source(self) -> Address:
         """This method should return the source address associated with the order."""
