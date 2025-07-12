@@ -111,7 +111,7 @@ class SplashOrderDatum(OrderDatum):
 
         full_address = PlutusFullAddress.from_address(address_source)
 
-        beacon = "".join(choice(hexdigits) for _ in range(56))
+        beacon = bytes.fromhex("".join(choice(hexdigits) for _ in range(56)))
 
         numerator, denominator = float.as_integer_ratio(
             in_assets.quantity() / out_assets.quantity(),
@@ -821,6 +821,26 @@ class SplashCPPRoyaltyState(SplashCPPState):
 
         # Verify pool is active
         values["inactive"] = assets.quantity() < 100000000
+
+    def swap_utxo(
+        self,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        tx_builder: TransactionBuilder | None = None,
+        extra_assets: Assets | None = None,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ) -> tuple[TransactionOutput | None, PlutusData]:
+        return super(SplashBaseState, self).swap_utxo(
+            address_source=address_source,
+            in_assets=in_assets,
+            out_assets=out_assets,
+            tx_builder=tx_builder,
+            extra_assets=extra_assets,
+            address_target=address_target,
+            datum_target=datum_target,
+        )
 
     # def swap_utxo(
     #     self,
