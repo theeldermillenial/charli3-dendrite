@@ -613,6 +613,11 @@ class MinswapV2OrderDatum(OrderDatum):
                     "asset_b": self.step.minimum_asset_b,
                 },
             )
+        elif isinstance(self.step, SwapMultiRoutingV2):
+            if isinstance(self.step.routings[-1].a_to_b_direction, BoolTrue):
+                return Assets({"asset_b": self.step.minimum_receive})
+            else:
+                return Assets({"asset_a": self.step.minimum_receive})
         else:
             return Assets({})
 
