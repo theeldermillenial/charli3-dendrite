@@ -114,7 +114,7 @@ class SplashOrderDatum(OrderDatum):
         beacon = bytes.fromhex("".join(choice(hexdigits) for _ in range(56)))
 
         numerator, denominator = float.as_integer_ratio(
-            in_assets.quantity() / out_assets.quantity(),
+            out_assets.quantity() / in_assets.quantity(),
         )
 
         return cls(
