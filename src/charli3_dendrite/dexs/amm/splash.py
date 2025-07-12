@@ -113,10 +113,6 @@ class SplashOrderDatum(OrderDatum):
 
         beacon = bytes.fromhex("".join(choice(hexdigits) for _ in range(56)))
 
-        numerator, denominator = float.as_integer_ratio(
-            out_assets.quantity() / in_assets.quantity(),
-        )
-
         return cls(
             tag=b"\x00",
             beacon=beacon,
@@ -125,8 +121,11 @@ class SplashOrderDatum(OrderDatum):
             cost_per_ex_step=batcher_fee.quantity(),
             min_marginal_output=out_assets.quantity(),
             output=AssetClass.from_assets(out_assets),
-            base_price=Rationale(numerator=numerator, denominator=denominator),
-            fee=0,
+            base_price=Rationale(
+                numerator=out_assets.quantity(),
+                denominator=in_assets.quantity(),
+            ),
+            fee=batcher_fee.quantity(),
             redeemer_address=full_address,
             cancel_pkh=address_source.payment_part.payload,
         )
