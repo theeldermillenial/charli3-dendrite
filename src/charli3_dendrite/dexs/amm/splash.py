@@ -1,6 +1,8 @@
 """Minswap DEX Module."""
 
 from dataclasses import dataclass
+from random import choice
+from string import hexdigits
 from typing import Any
 from typing import List
 from typing import Union
@@ -71,7 +73,9 @@ class SplashOrderDatum(OrderDatum):
     fee: int
     redeemer_address: PlutusFullAddress
     cancel_pkh: bytes
-    permitted_executors: List[bytes]
+    permitted_executors: List[bytes] = [
+        b"\\\xb2\xc9h\xe5\xd1\xc7\x19zl\xe7aYg1\n7UE\xd9\xbce\x06:\x96C5\xb2"
+    ]
 
     def address_source(self) -> Address:
         """This method should return the source address associated with the order."""
@@ -87,6 +91,43 @@ class SplashOrderDatum(OrderDatum):
     def order_type(self) -> OrderType:
         """This method should return the type of the order."""
         return OrderType.swap
+
+    @classmethod
+    def create_datum(
+        cls,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        batcher_fee: Assets,
+        deposit: Assets,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ) -> "CSwapOrderDatum":
+        """Create a CSwap order datum."""
+        # Validate ADA-only restriction
+        merged_assets = in_assets + out_assets
+
+        full_address = PlutusFullAddress.from_address(address_source)
+
+        beacon = "".join(choice(hexdigits) for _ in range(56))
+
+        numerator, denominator = float.as_integer_ratio(
+            in_assets.quantity() / out_assets.quantity(),
+        )
+
+        return cls(
+            tag=b"\x00",
+            beacon=beacon,
+            in_asset=AssetClass.from_assets(in_assets),
+            tradable_input=in_assets.quantity(),
+            cost_per_ex_step=batcher_fee.quantity(),
+            min_marginal_output=out_assets.quantity(),
+            output=AssetClass.from_assets(out_assets),
+            base_price=Rationale(numerator=numerator, denominator=denominator),
+            fee=0,
+            redeemer_address=full_address,
+            cancel_pkh=address_source.payment_part.payload,
+        )
 
 
 @dataclass
@@ -741,8 +782,8 @@ class SplashCPPRoyaltyState(SplashCPPState):
     """Splash StableSwap Pool State."""
 
     fee: int = 30
-    _batcher = Assets(lovelace=0)
-    _deposit = Assets(lovelace=0)
+    _batcher = Assets(lovelace=1000000)
+    _deposit = Assets(lovelace=1500000)
 
     def _treasury_x(self) -> int:
         return self.pool_datum.treasury_x + self.pool_datum.royalty_x
@@ -779,102 +820,102 @@ class SplashCPPRoyaltyState(SplashCPPState):
         # Verify pool is active
         values["inactive"] = assets.quantity() < 100000000
 
-    def swap_utxo(
-        self,
-        address_source: Address,
-        in_assets: Assets,
-        out_assets: Assets,
-        tx_builder: TransactionBuilder | None = None,
-        extra_assets: Assets | None = None,
-        address_target: Address | None = None,
-        datum_target: PlutusData | None = None,
-    ) -> tuple[TransactionOutput | None, PlutusData]:
-        assert self.tx_hash is not None
-        assert self.pool_nft is not None
-        assert self.lp_tokens is not None
-        assert tx_builder is not None
+    # def swap_utxo(
+    #     self,
+    #     address_source: Address,
+    #     in_assets: Assets,
+    #     out_assets: Assets,
+    #     tx_builder: TransactionBuilder | None = None,
+    #     extra_assets: Assets | None = None,
+    #     address_target: Address | None = None,
+    #     datum_target: PlutusData | None = None,
+    # ) -> tuple[TransactionOutput | None, PlutusData]:
+    #     assert self.tx_hash is not None
+    #     assert self.pool_nft is not None
+    #     assert self.lp_tokens is not None
+    #     assert tx_builder is not None
 
-        order_info = get_backend().get_pool_in_tx(
-            self.tx_hash,
-            assets=[self.pool_nft.unit()],
-            addresses=self.pool_selector().addresses,
-        )
+    #     order_info = get_backend().get_pool_in_tx(
+    #         self.tx_hash,
+    #         assets=[self.pool_nft.unit()],
+    #         addresses=self.pool_selector().addresses,
+    #     )
 
-        # Get the output assets
-        out_assets, _ = self.get_amount_out(asset=in_assets)
+    #     # Get the output assets
+    #     out_assets, _ = self.get_amount_out(asset=in_assets)
 
-        # Create the output redeemer
-        redeemer = Redeemer(
-            CPPoolRedeemer(
-                action=2,
-                self_index=-1,
-            ),
-        )
+    #     # Create the output redeemer
+    #     redeemer = Redeemer(
+    #         CPPoolRedeemer(
+    #             action=2,
+    #             self_index=-1,
+    #         ),
+    #     )
 
-        # Create the pool input UTxO
-        pool_datum_class = self.pool_datum_class()
-        pool_datum = pool_datum_class.from_cbor(
-            self.pool_datum.to_cbor(),
-        )
-        assets = self.assets + self.pool_nft + self.lp_tokens
-        assets.root[self.assets.unit()] += (
-            pool_datum.treasury_x + self.pool_datum.royalty_x
-        )
-        assets.root[self.assets.unit(1)] += (
-            pool_datum.treasury_y + self.pool_datum.royalty_y
-        )
-        input_utxo = UTxO(
-            TransactionInput(
-                transaction_id=TransactionId(bytes.fromhex(self.tx_hash)),
-                index=self.tx_index,
-            ),
-            output=TransactionOutput(
-                address=order_info[0].address,
-                amount=asset_to_value(assets),
-                datum=self.pool_datum,
-            ),
-        )
+    #     # Create the pool input UTxO
+    #     pool_datum_class = self.pool_datum_class()
+    #     pool_datum = pool_datum_class.from_cbor(
+    #         self.pool_datum.to_cbor(),
+    #     )
+    #     assets = self.assets + self.pool_nft + self.lp_tokens
+    #     assets.root[self.assets.unit()] += (
+    #         pool_datum.treasury_x + self.pool_datum.royalty_x
+    #     )
+    #     assets.root[self.assets.unit(1)] += (
+    #         pool_datum.treasury_y + self.pool_datum.royalty_y
+    #     )
+    #     input_utxo = UTxO(
+    #         TransactionInput(
+    #             transaction_id=TransactionId(bytes.fromhex(self.tx_hash)),
+    #             index=self.tx_index,
+    #         ),
+    #         output=TransactionOutput(
+    #             address=order_info[0].address,
+    #             amount=asset_to_value(assets),
+    #             datum=self.pool_datum,
+    #         ),
+    #     )
 
-        # Create the pool output UTxO
-        new_assets = Assets.model_validate(assets.model_dump())
-        new_assets.root[in_assets.unit()] += in_assets.quantity()
-        new_assets.root[out_assets.unit()] += -out_assets.quantity()
-        new_pool_datum = pool_datum_class.from_cbor(
-            self.pool_datum.to_cbor(),
-        )
+    #     # Create the pool output UTxO
+    #     new_assets = Assets.model_validate(assets.model_dump())
+    #     new_assets.root[in_assets.unit()] += in_assets.quantity()
+    #     new_assets.root[out_assets.unit()] += -out_assets.quantity()
+    #     new_pool_datum = pool_datum_class.from_cbor(
+    #         self.pool_datum.to_cbor(),
+    #     )
 
-        if in_assets.unit() == new_pool_datum.asset_x.assets.unit():
-            new_pool_datum.treasury_x += int(
-                in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
-            )
-            new_pool_datum.royalty_x += int(
-                in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
-            )
-        elif in_assets.unit() == new_pool_datum.asset_y.assets.unit():
-            new_pool_datum.treasury_y += int(
-                in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
-            )
-            new_pool_datum.royalty_y += int(
-                in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
-            )
-        else:
-            raise ValueError("Invalid input asset")
+    #     if in_assets.unit() == new_pool_datum.asset_x.assets.unit():
+    #         new_pool_datum.treasury_x += int(
+    #             in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
+    #         )
+    #         new_pool_datum.royalty_x += int(
+    #             in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
+    #         )
+    #     elif in_assets.unit() == new_pool_datum.asset_y.assets.unit():
+    #         new_pool_datum.treasury_y += int(
+    #             in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
+    #         )
+    #         new_pool_datum.royalty_y += int(
+    #             in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
+    #         )
+    #     else:
+    #         raise ValueError("Invalid input asset")
 
-        txo = TransactionOutput(
-            address=order_info[0].address,
-            amount=asset_to_value(new_assets),
-            datum=new_pool_datum,
-        )
+    #     txo = TransactionOutput(
+    #         address=order_info[0].address,
+    #         amount=asset_to_value(new_assets),
+    #         datum=new_pool_datum,
+    #     )
 
-        # Add the script input
-        pool_hash = Address.decode(order_info[0].address).payment_part.payload
-        script = (
-            get_backend()
-            .get_script_from_address(
-                Address(payment_part=ScriptHash(payload=pool_hash)),
-            )
-            .to_utxo()
-        )
-        tx_builder.add_script_input(utxo=input_utxo, script=script, redeemer=redeemer)
+    #     # Add the script input
+    #     pool_hash = Address.decode(order_info[0].address).payment_part.payload
+    #     script = (
+    #         get_backend()
+    #         .get_script_from_address(
+    #             Address(payment_part=ScriptHash(payload=pool_hash)),
+    #         )
+    #         .to_utxo()
+    #     )
+    #     tx_builder.add_script_input(utxo=input_utxo, script=script, redeemer=redeemer)
 
-        return txo, self.pool_datum
+    #     return txo, self.pool_datum
