@@ -125,7 +125,7 @@ class SplashOrderDatum(OrderDatum):
                 numerator=out_assets.quantity(),
                 denominator=in_assets.quantity(),
             ),
-            fee=batcher_fee.quantity(),
+            fee=0,
             redeemer_address=full_address,
             cancel_pkh=address_source.payment_part.payload,
         )
