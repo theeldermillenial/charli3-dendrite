@@ -625,11 +625,9 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         rx = self.assets[asset.unit()]
 
         if asset.unit() == self.assets.unit():
-            ry = self.assets.quantity(1) + self._treasury_y()
-            rx += self._treasury_x()
+            ry = self.assets.quantity(1)
         else:
-            ry = self.assets.quantity(0) + self._treasury_x()
-            rx += self._treasury_y()
+            ry = self.assets.quantity(0)
 
         # Check to make sure the output passes invariant, and decrease until it does
         dy = -amount_out.quantity()
