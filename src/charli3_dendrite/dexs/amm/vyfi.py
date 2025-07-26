@@ -241,6 +241,17 @@ class VyFiCPPState(AbstractConstantProductPoolState):
     bar_fee: int = 0
 
     @classmethod
+    def skip_init(cls, values: dict) -> bool:
+        """Skip initialization if the pool NFT is invalid."""
+        if "pool_nft" in values:
+            if not any(p in cls.pools() for p in values["pool_nft"]):
+                raise ValueError("Invalid pool NFT")
+
+            return True
+
+        return False
+
+    @classmethod
     def dex(cls) -> str:
         """Get the DEX name."""
         return "VyFi"
