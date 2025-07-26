@@ -1,6 +1,7 @@
 """Minswap DEX Module."""
 
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import List
 from typing import Union
@@ -34,14 +35,20 @@ from charli3_dendrite.dexs.core.errors import NotAPoolError
 from charli3_dendrite.utility import Assets
 from charli3_dendrite.utility import asset_to_value
 
+LIQUIDITY_THRESHOLD = 100000000
+
 
 @dataclass
 class BoolFalse(PlutusData):
+    """Plutus data representation of boolean false."""
+
     CONSTR_ID = 0
 
 
 @dataclass
 class BoolTrue(PlutusData):
+    """Plutus data representation of boolean true."""
+
     CONSTR_ID = 1
 
 
@@ -71,7 +78,11 @@ class SplashOrderDatum(OrderDatum):
     fee: int
     redeemer_address: PlutusFullAddress
     cancel_pkh: bytes
-    permitted_executors: List[bytes]
+    permitted_executors: List[bytes] = field(
+        default_factory=lambda: [
+            b"\\\xb2\xc9h\xe5\xd1\xc7\x19zl\xe7aYg1\n7UE\xd9\xbce\x06:\x96C5\xb2",
+        ],
+    )
 
     def address_source(self) -> Address:
         """This method should return the source address associated with the order."""
@@ -160,7 +171,34 @@ class SplashCPPBidirPoolDatum(PoolDatum):
 
 
 @dataclass
+class SplashCPPRoyaltyPoolDatum(PoolDatum):
+    """The pool datum for the Spectrum DEX."""
+
+    pool_nft: AssetClass
+    asset_x: AssetClass
+    asset_y: AssetClass
+    lp_token: AssetClass
+    pool_fee: int
+    treasury_fee: int
+    royalty_fee: int
+    treasury_x: int
+    treasury_y: int
+    royalty_x: int
+    royalty_y: int
+    admin_address: RawDatum
+    treasury_address: bytes
+    royalty_pub_key: bytes
+    nonce: int
+
+    def pool_pair(self) -> Assets | None:
+        """Returns the pool pair assets if available."""
+        return self.asset_x.assets + self.asset_y.assets
+
+
+@dataclass
 class SwapAction(PlutusData):
+    """Plutus data for swap action."""
+
     CONSTR_ID = 0
 
     context_values_list: List[int]
@@ -168,25 +206,29 @@ class SwapAction(PlutusData):
 
 @dataclass
 class PDAOAction(PlutusData):
+    """Plutus data for PDAO action."""
+
     CONSTR_ID = 1
 
 
 @dataclass
 class SSPoolRedeemer(PlutusData):
+    """Plutus data for stable swap pool."""
+
     CONSTR_ID = 0
 
     pool_in_idx: int
     pool_out_idx: int
     action: Union[SwapAction, PDAOAction]
 
-    def set_idx(self, tx_builder: TransactionBuilder):
+    def set_idx(self, tx_builder: TransactionBuilder) -> None:
         """Set the pool in and out indexes.
 
         It is necessary to make sure that redeemer indices are already set before
         calling this function.
         """
         contract_hash = Address.from_primitive(
-            "addr1w9wnm7vle7al9q4aw63aw63wxz7aytnpc4h3gcjy0yufxwc3mr3e5"
+            "addr1w9wnm7vle7al9q4aw63aw63wxz7aytnpc4h3gcjy0yufxwc3mr3e5",
         ).payment_part.payload
 
         # Set the input index
@@ -198,18 +240,21 @@ class SSPoolRedeemer(PlutusData):
         for i, txo in enumerate(tx_builder.outputs):
             if txo.address.payment_part.payload == contract_hash:
                 pool_index = i
-        assert pool_index is not None
+        if pool_index is None:
+            raise RuntimeError("Pool output not found in transaction outputs")
         self.pool_out_idx = pool_index
 
 
 @dataclass
 class CPPoolRedeemer(PlutusData):
+    """Plutus data for constant product pool."""
+
     CONSTR_ID = 0
 
     action: int
     self_index: int
 
-    def set_idx(self, tx_builder: TransactionBuilder):
+    def set_idx(self, tx_builder: TransactionBuilder) -> None:
         """Set the pool in and out indexes.
 
         It is necessary to make sure that redeemer indices are already set before
@@ -222,24 +267,31 @@ class CPPoolRedeemer(PlutusData):
 
 
 class SplashBaseState(AbstractPairState):
+    """Base state class for Splash DEX pools."""
+
     @classmethod
     def dex(cls) -> str:
+        """Return the name of the DEX."""
         return "Splash"
 
     @classmethod
-    def order_selector(self) -> list[str]:
+    def order_selector(cls) -> list[str]:
+        """Return the order selector addresses."""
         return ["addr1w9ryamhgnuz6lau86sqytte2gz5rlktv2yce05e0h3207qssa8euj"]
 
     @property
     def stake_address(self) -> Address | None:
+        """Return the stake address for orders."""
         return Address.decode(self.order_selector()[0])
 
     @property
     def swap_forward(self) -> bool:
+        """Return whether this DEX supports swap forwarding."""
         return False
 
     @classmethod
-    def order_datum_class(cls):
+    def order_datum_class(cls) -> type[SplashOrderDatum]:
+        """Return the order datum class for this DEX."""
         return SplashOrderDatum
 
     @classmethod
@@ -249,6 +301,7 @@ class SplashBaseState(AbstractPairState):
 
     @classmethod
     def script_class(cls) -> type[PlutusV2Script]:
+        """Return the script class for this DEX."""
         return PlutusV2Script
 
     @classmethod
@@ -298,15 +351,16 @@ class SplashBaseState(AbstractPairState):
         return pool_nft
 
     @classmethod
-    def skip_init(cls, values) -> bool:
+    def skip_init(cls, values: dict[str, Any]) -> bool:
+        """Check if initialization should be skipped for already parsed values."""
         if "pool_nft" in values and "lp_tokens" in values:
             order_class = cls.pool_datum_class()
             try:
                 datum: SplashSSPPoolDatum | SplashCPPPoolDatum = order_class.from_cbor(
                     values["datum_cbor"],
                 )
-            except DeserializeException:
-                raise NotAPoolError("Invalid datum")
+            except DeserializeException as err:
+                raise NotAPoolError("Invalid datum") from err
 
             if datum.pool_nft.assets.unit() not in values["pool_nft"]:
                 raise NotAPoolError("Invalid pool NFT")
@@ -315,8 +369,8 @@ class SplashBaseState(AbstractPairState):
 
             values["assets"] = Assets.model_validate(values["assets"])
             return True
-        else:
-            return False
+
+        return False
 
     @property
     def pool_id(self) -> str:
@@ -349,8 +403,7 @@ class SplashBaseState(AbstractPairState):
             if lp_token not in assets:
                 raise InvalidLPError("A pool must have pool lp tokens.")
 
-            else:
-                lp_tokens = Assets(**{lp_token: assets.root.pop(lp_token)})
+            lp_tokens = Assets(**{lp_token: assets.root.pop(lp_token)})
 
             values["lp_tokens"] = lp_tokens
 
@@ -367,6 +420,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
 
     @classmethod
     def pool_selector(cls) -> PoolSelector:
+        """Return the pool selector for this DEX."""
         return PoolSelector(
             addresses=["addr1w9wnm7vle7al9q4aw63aw63wxz7aytnpc4h3gcjy0yufxwc3mr3e5"],
         )
@@ -382,11 +436,13 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         return self.pool_datum.an2n // 4
 
     @classmethod
-    def pool_datum_class(self) -> type[SplashSSPPoolDatum]:
+    def pool_datum_class(cls) -> type[SplashSSPPoolDatum]:
+        """Return the pool datum class for stable swap pools."""
         return SplashSSPPoolDatum
 
     @classmethod
-    def post_init(cls, values):
+    def post_init(cls, values: dict[str, Any]) -> None:
+        """Post-initialization processing for stable swap pools."""
         super().post_init(values)
 
         datum: SplashSSPPoolDatum = SplashSSPPoolDatum.from_cbor(values["datum_cbor"])
@@ -405,7 +461,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         # Verify pool is active
         # TODO: should be updated to match the validator:
         # https://github.com/splashprotocol/splash-core/blob/main/validators/stable_pool/pool.ak
-        values["inactive"] = assets.quantity() < 100000000
+        values["inactive"] = assets.quantity() < LIQUIDITY_THRESHOLD
 
     def get_amount_out(
         self,
@@ -413,6 +469,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         precise: bool = False,
         fee_on_input: bool = False,
     ) -> tuple[Assets, float]:
+        """Calculate output amount for a given input asset amount."""
         return super().get_amount_out(asset=asset, precise=precise, fee_on_input=False)
 
     def get_amount_in(
@@ -421,6 +478,7 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         precise: bool = False,
         fee_on_input: bool = False,
     ) -> tuple[Assets, float]:
+        """Calculate input amount required for a given output asset amount."""
         return super().get_amount_in(asset=asset, precise=precise, fee_on_input=False)
 
     def swap_utxo(
@@ -433,10 +491,15 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
     ) -> tuple[TransactionOutput | None, PlutusData]:
-        assert self.tx_hash is not None
-        assert self.pool_nft is not None
-        assert self.lp_tokens is not None
-        assert tx_builder is not None
+        """Create a swap UTXO for the stable swap pool."""
+        if self.tx_hash is None:
+            raise ValueError("Transaction hash is required for swap operation")
+        if self.pool_nft is None:
+            raise ValueError("Pool NFT is required for swap operation")
+        if self.lp_tokens is None:
+            raise ValueError("LP tokens are required for swap operation")
+        if tx_builder is None:
+            raise ValueError("Transaction builder is required for swap operation")
 
         order_info = get_backend().get_pool_in_tx(
             self.tx_hash,
@@ -497,13 +560,14 @@ class SplashSSPState(SplashBaseState, AbstractCommonStableSwapPoolState):
 class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
     """Splash StableSwap Pool State."""
 
-    fee: int = 30
+    fee: Union[int, list[int]] = 30
     fee_basis: int = 100000
     _batcher = Assets(lovelace=0)
     _deposit = Assets(lovelace=0)
 
     @classmethod
     def pool_selector(cls) -> PoolSelector:
+        """Return the pool selector for constant product pools."""
         return PoolSelector(
             addresses=[
                 "addr1w8cq97k066w4rd37wprvd4qrfxctzlyd6a67us2uv6hnenqrkvy2j",
@@ -512,14 +576,18 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         )
 
     @classmethod
-    def pool_datum_class(self) -> type[SplashCPPPoolDatum]:
+    def pool_datum_class(cls) -> type[SplashCPPPoolDatum]:
+        """Return the pool datum class for constant product pools."""
         return SplashCPPPoolDatum
 
     @classmethod
-    def post_init(cls, values):
+    def post_init(cls, values: dict[str, Any]) -> None:
+        """Post-initialization processing for constant product pools."""
         super().post_init(values)
 
-        datum: SplashCPPPoolDatum = SplashCPPPoolDatum.from_cbor(values["datum_cbor"])
+        datum: SplashCPPPoolDatum = cls.pool_datum_class().from_cbor(
+            values["datum_cbor"],
+        )
 
         values["fee"] = 100000 - datum.pool_fee + datum.treasury_fee
 
@@ -530,44 +598,63 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         # Verify pool is active
         # TODO: should be updated to match the validator:
         # https://github.com/splashprotocol/splash-core/blob/9fd951054ac7143de6acf491f36d1073e729ba90/plutarch-validators/WhalePoolsDex/PContracts/PPool.hs#L367
-        values["inactive"] = assets.quantity() < 100000000
+        values["inactive"] = assets.quantity() < LIQUIDITY_THRESHOLD
+
+    def _treasury_x(self) -> int:
+        return self.pool_datum.treasury_x
+
+    def _treasury_y(self) -> int:
+        return self.pool_datum.treasury_y
 
     def get_amount_out(
         self,
         asset: Assets,
         precise: bool = True,
     ) -> tuple[Assets, float]:
-        amount_out, float = super().get_amount_out(asset=asset, precise=precise)
+        """Calculate output amount for constant product pool with treasury fees."""
+        amount_out, slippage = super().get_amount_out(asset=asset, precise=precise)
 
-        pool_datum = self.pool_datum
-        fee = pool_datum.pool_fee - pool_datum.treasury_fee
+        if isinstance(self.fee, (int, float)):
+            fee: int = self.fee
+        else:
+            fee = self.fee[0] if asset.unit() == self.assets.unit_a else self.fee[1]
+
+        fee = 100000 - fee
         dx = asset.quantity()
         dxf = dx * fee
         rx = self.assets[asset.unit()]
 
         if asset.unit() == self.assets.unit():
-            ry = self.assets.quantity(1) + pool_datum.treasury_y
-            rx += pool_datum.treasury_x
+            ry = self.assets.quantity(1)
         else:
-            ry = self.assets.quantity(0) + pool_datum.treasury_x
-            rx += pool_datum.treasury_y
+            ry = self.assets.quantity(0)
 
         # Check to make sure the output passes invariant, and decrease until it does
         dy = -amount_out.quantity()
         dyf = dy * fee
-        try:
-            assert -dy * (rx * 100000 + dxf) <= ry * dxf
-            assert -dx * (ry * 100000 + dyf) <= rx * dyf
-        except AssertionError:
+
+        # First invariant check - if it fails, adjust the output amount
+        if not (
+            -dy * (rx * 100000 + dxf) <= ry * dxf
+            and -dx * (ry * 100000 + dyf) <= rx * dyf
+        ):
             amount_out.root[amount_out.unit()] = int(ry * dxf / (rx * 100000 + dxf))
 
             dy = -amount_out.quantity()
             dyf = dy * fee
 
-            assert -dy * (rx * 100000 + dxf) <= ry * dxf
-            assert -dx * (ry * 100000 + dyf) <= rx * dyf
+            # Final invariant check - if this fails, it's a serious error
+            if not (
+                -dy * (rx * 100000 + dxf) <= ry * dxf
+                and -dx * (ry * 100000 + dyf) <= rx * dyf
+            ):
+                raise ValueError(
+                    "AMM violation: mathematical constraints cannot be satisfied. "
+                    f"dy={dy}, dx={dx}, rx={rx}, ry={ry}, "
+                    f"dxf={dxf}, dyf={dyf}",
+                )
 
-        return amount_out, float
+        return amount_out, slippage
 
     def swap_utxo(
         self,
@@ -579,10 +666,15 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
         address_target: Address | None = None,
         datum_target: PlutusData | None = None,
     ) -> tuple[TransactionOutput | None, PlutusData]:
-        assert self.tx_hash is not None
-        assert self.pool_nft is not None
-        assert self.lp_tokens is not None
-        assert tx_builder is not None
+        """Create a swap UTXO for the constant product pool."""
+        if self.tx_hash is None:
+            raise ValueError("Transaction hash is required for swap operation")
+        if self.pool_nft is None:
+            raise ValueError("Pool NFT is required for swap operation")
+        if self.lp_tokens is None:
+            raise ValueError("LP tokens are required for swap operation")
+        if tx_builder is None:
+            raise ValueError("Transaction builder is required for swap operation")
 
         order_info = get_backend().get_pool_in_tx(
             self.tx_hash,
@@ -663,12 +755,12 @@ class SplashCPPState(SplashBaseState, AbstractConstantProductPoolState):
 class SplashCPPBidirState(SplashCPPState):
     """Splash StableSwap Pool State."""
 
-    fee: int = [30, 30]
     _batcher = Assets(lovelace=0)
     _deposit = Assets(lovelace=0)
 
     @classmethod
     def pool_selector(cls) -> PoolSelector:
+        """Return the pool selector for bidirectional constant product pools."""
         return PoolSelector(
             addresses=[
                 "addr1w95q755yrsr0xt8vmn007tpqee4hps49yjdef5dzknhl99qntsmh0",
@@ -676,11 +768,13 @@ class SplashCPPBidirState(SplashCPPState):
         )
 
     @classmethod
-    def pool_datum_class(self) -> type[SplashCPPBidirPoolDatum]:
+    def pool_datum_class(cls) -> type[SplashCPPBidirPoolDatum]:
+        """Return the pool datum class for bidirectional pools."""
         return SplashCPPBidirPoolDatum
 
     @classmethod
-    def post_init(cls, values):
+    def post_init(cls, values: dict[str, Any]) -> None:
+        """Post-initialization processing for bidirectional constant product pools."""
         super().post_init(values)
 
         datum: SplashCPPBidirPoolDatum = SplashCPPBidirPoolDatum.from_cbor(
@@ -688,8 +782,8 @@ class SplashCPPBidirState(SplashCPPState):
         )
 
         values["fee"] = [
-            (100000 - datum.pool_fee_x + datum.treasury_fee) // 10,
-            (100000 - datum.pool_fee_y + datum.treasury_fee) // 10,
+            (100000 - datum.pool_fee_x + datum.treasury_fee),
+            (100000 - datum.pool_fee_y + datum.treasury_fee),
         ]
 
         assets = values["assets"]
@@ -697,4 +791,151 @@ class SplashCPPBidirState(SplashCPPState):
         assets.root[assets.unit(1)] -= datum.treasury_y
 
         # Verify pool is active
-        values["inactive"] = assets.quantity() < 100000000
+        values["inactive"] = assets.quantity() < LIQUIDITY_THRESHOLD
+
+
+class SplashCPPRoyaltyState(SplashCPPState):
+    """Splash StableSwap Pool State."""
+
+    _batcher = Assets(lovelace=0)
+    _deposit = Assets(lovelace=0)
+
+    def _treasury_x(self) -> int:
+        return self.pool_datum.treasury_x + self.pool_datum.royalty_x
+
+    def _treasury_y(self) -> int:
+        return self.pool_datum.treasury_y + self.pool_datum.royalty_y
+
+    @classmethod
+    def pool_selector(cls) -> PoolSelector:
+        """Return the pool selector for royalty constant product pools."""
+        return PoolSelector(
+            addresses=[
+                "addr1w89ksjnfu7ys02tedvslc9g2wk90tu5qte0dt4dge60hdugfqe64t",
+            ],
+        )
+
+    @classmethod
+    def pool_datum_class(cls) -> type[SplashCPPRoyaltyPoolDatum]:
+        """Return the pool datum class for royalty pools."""
+        return SplashCPPRoyaltyPoolDatum
+
+    @classmethod
+    def post_init(cls, values: dict[str, Any]) -> None:
+        """Post-initialization processing for royalty constant product pools."""
+        super().post_init(values)
+
+        datum: SplashCPPRoyaltyPoolDatum = SplashCPPRoyaltyPoolDatum.from_cbor(
+            values["datum_cbor"],
+        )
+
+        values["fee"] += datum.royalty_fee
+
+        assets = values["assets"]
+        assets.root[assets.unit(0)] -= datum.royalty_x
+        assets.root[assets.unit(1)] -= datum.royalty_y
+
+    def swap_utxo(
+        self,
+        address_source: Address,
+        in_assets: Assets,
+        out_assets: Assets,
+        tx_builder: TransactionBuilder | None = None,
+        extra_assets: Assets | None = None,
+        address_target: Address | None = None,
+        datum_target: PlutusData | None = None,
+    ) -> tuple[TransactionOutput | None, PlutusData]:
+        """Create a swap UTXO for the royalty constant product pool."""
+        if self.tx_hash is None:
+            raise ValueError("Transaction hash is required for swap operation")
+        if self.pool_nft is None:
+            raise ValueError("Pool NFT is required for swap operation")
+        if self.lp_tokens is None:
+            raise ValueError("LP tokens are required for swap operation")
+        if tx_builder is None:
+            raise ValueError("Transaction builder is required for swap operation")
+
+        order_info = get_backend().get_pool_in_tx(
+            self.tx_hash,
+            assets=[self.pool_nft.unit()],
+            addresses=self.pool_selector().addresses,
+        )
+
+        # Get the output assets
+        out_assets, _ = self.get_amount_out(asset=in_assets)
+
+        # Create the output redeemer
+        redeemer = Redeemer(
+            CPPoolRedeemer(
+                action=2,
+                self_index=-1,
+            ),
+        )
+
+        # Create the pool input UTxO
+        pool_datum_class = self.pool_datum_class()
+        pool_datum = pool_datum_class.from_cbor(
+            self.pool_datum.to_cbor(),
+        )
+        assets = self.assets + self.pool_nft + self.lp_tokens
+        assets.root[self.assets.unit()] += (
+            pool_datum.treasury_x + self.pool_datum.royalty_x
+        )
+        assets.root[self.assets.unit(1)] += (
+            pool_datum.treasury_y + self.pool_datum.royalty_y
+        )
+        input_utxo = UTxO(
+            TransactionInput(
+                transaction_id=TransactionId(bytes.fromhex(self.tx_hash)),
+                index=self.tx_index,
+            ),
+            output=TransactionOutput(
+                address=order_info[0].address,
+                amount=asset_to_value(assets),
+                datum=self.pool_datum,
+            ),
+        )
+
+        # Create the pool output UTxO
+        new_assets = Assets.model_validate(assets.model_dump())
+        new_assets.root[in_assets.unit()] += in_assets.quantity()
+        new_assets.root[out_assets.unit()] += -out_assets.quantity()
+        new_pool_datum = pool_datum_class.from_cbor(
+            self.pool_datum.to_cbor(),
+        )
+
+        if in_assets.unit() == new_pool_datum.asset_x.assets.unit():
+            new_pool_datum.treasury_x += int(
+                in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
+            )
+            new_pool_datum.royalty_x += int(
+                in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
+            )
+        elif in_assets.unit() == new_pool_datum.asset_y.assets.unit():
+            new_pool_datum.treasury_y += int(
+                in_assets.quantity() * new_pool_datum.treasury_fee // 100000,
+            )
+            new_pool_datum.royalty_y += int(
+                in_assets.quantity() * new_pool_datum.royalty_fee // 100000,
+            )
+        else:
+            raise ValueError("Invalid input asset")
+
+        txo = TransactionOutput(
+            address=order_info[0].address,
+            amount=asset_to_value(new_assets),
+            datum=new_pool_datum,
+        )
+
+        # Add the script input
+        pool_hash = Address.decode(order_info[0].address).payment_part.payload
+        script = (
+            get_backend()
+            .get_script_from_address(
+                Address(payment_part=ScriptHash(payload=pool_hash)),
+            )
+            .to_utxo()
+        )
+        tx_builder.add_script_input(utxo=input_utxo, script=script, redeemer=redeemer)
+
+        return txo, self.pool_datum

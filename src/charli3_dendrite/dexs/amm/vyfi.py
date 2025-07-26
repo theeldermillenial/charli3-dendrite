@@ -40,7 +40,7 @@ class VyFiPoolDatum(PoolDatum):
     token_b_fees: int
     lp_tokens: int
 
-    def pool_pair(self) -> Optional[Assets]:
+    def pool_pair(self) -> Optional[Assets]:  # noqa: UP007
         """Return the pool pair assets."""
         return None
 
@@ -114,7 +114,7 @@ class VyFiOrderDatum(OrderDatum):
     """VyFi order datum."""
 
     address: bytes
-    order: Union[AtoB, BtoA, Deposit, LPFlushA, Withdraw, ZapInA, ZapInB]
+    order: Union[AtoB, BtoA, Deposit, LPFlushA, Withdraw, ZapInA, ZapInB]  # noqa: UP007
 
     @classmethod
     def create_datum(
@@ -124,8 +124,8 @@ class VyFiOrderDatum(OrderDatum):
         out_assets: Assets,
         batcher_fee: Assets,  # noqa: ARG003
         deposit: Assets,  # noqa: ARG003
-        address_target: Optional[Address] = None,  # noqa: ARG003
-        datum_target: Optional[PlutusData] = None,  # noqa: ARG003
+        address_target: Optional[Address] = None,  # noqa: ARG003,UP007
+        datum_target: Optional[PlutusData] = None,  # noqa: ARG003,UP007
     ) -> VyFiOrderDatum:
         """Create a new order datum."""
         address_hash = (
@@ -170,7 +170,7 @@ class VyFiOrderDatum(OrderDatum):
             )
         return Assets()
 
-    def order_type(self) -> Optional[OrderType]:
+    def order_type(self) -> Optional[OrderType]:  # noqa: UP007
         """Get the order type."""
         if isinstance(self.order, (BtoA, AtoB, ZapInA, ZapInB)):
             return OrderType.swap
@@ -205,7 +205,7 @@ class VyFiPoolTokens(BaseModel):
     operator_token: VyFiTokenDefinition = Field(alias="operatorToken")
     lp_token_name: dict[str, str] = Field(alias="lpTokenName")
     fees_settings: VyFiFees = Field(alias="feesSettings")
-    stake_key: Optional[str] = Field(alias="stakeKey")
+    stake_key: Optional[str] = Field(alias="stakeKey")  # noqa: UP007
 
 
 class VyFiPoolDefinition(BaseModel):
@@ -235,10 +235,21 @@ class VyFiCPPState(AbstractConstantProductPoolState):
 
     _batcher = Assets(lovelace=1900000)
     _deposit = Assets(lovelace=2000000)
-    _pools: ClassVar[Optional[dict[str, VyFiPoolDefinition]]] = None
+    _pools: ClassVar[Optional[dict[str, VyFiPoolDefinition]]] = None  # noqa: UP007
     _pools_refresh: ClassVar[float] = 0.0
     lp_fee: int = 0
     bar_fee: int = 0
+
+    @classmethod
+    def skip_init(cls, values: dict) -> bool:
+        """Skip initialization if the pool NFT is invalid."""
+        if "pool_nft" in values:
+            if not any(p in cls.pools() for p in values["pool_nft"]):
+                raise ValueError("Invalid pool NFT")
+
+            return True
+
+        return False
 
     @classmethod
     def dex(cls) -> str:
@@ -261,7 +272,10 @@ class VyFiCPPState(AbstractConstantProductPoolState):
         return [p.order_validator_utxo_address for p in cls.pools().values()]
 
     @classmethod
-    def pool_selector(cls, assets: Optional[list[str]] = None) -> PoolSelector:
+    def pool_selector(
+        cls,
+        assets: Optional[list[str]] = None,  # noqa: UP007
+    ) -> PoolSelector:
         """Get a PoolSelector for VyFi pools, optionally filtered by assets."""
         asset_to_pool = cls._create_asset_to_pool_mapping()
         relevant_pools = cls._filter_relevant_pools(asset_to_pool, assets)
@@ -291,7 +305,7 @@ class VyFiCPPState(AbstractConstantProductPoolState):
     def _filter_relevant_pools(
         cls,
         asset_to_pool: defaultdict[str, list[VyFiPoolDefinition]],
-        assets: Optional[list[str]],
+        assets: Optional[list[str]],  # noqa: UP007
     ) -> set[VyFiPoolDefinition]:
         """Filter relevant pools based on assets."""
         if assets:
@@ -375,7 +389,10 @@ class VyFiCPPState(AbstractConstantProductPoolState):
         return self.lp_fee + self.bar_fee
 
     @classmethod
-    def extract_pool_nft(cls, values: dict[str, Any]) -> Optional[Assets]:
+    def extract_pool_nft(
+        cls,
+        values: dict[str, Any],
+    ) -> Optional[Assets]:  # noqa: UP007
         """Extract the dex nft from the UTXO."""
         assets = values["assets"]
 
@@ -410,6 +427,9 @@ class VyFiCPPState(AbstractConstantProductPoolState):
 
         assets = values["assets"]
         datum = VyFiPoolDatum.from_cbor(values["datum_cbor"])
+
+        if assets.unit() == "lovelace":
+            assets.root[assets.unit(0)] -= 2000000
 
         assets.root[assets.unit(0)] -= datum.token_a_fees
         assets.root[assets.unit(1)] -= datum.token_b_fees
