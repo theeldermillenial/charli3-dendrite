@@ -348,9 +348,9 @@ class VyFiCPPState(AbstractConstantProductPoolState):
             cls._pools = {}
             for p in response.json():
                 p["json"] = json.loads(p["json"])
-                cls._pools[
-                    p["json"]["mainNFT"]["currencySymbol"]
-                ] = VyFiPoolDefinition.model_validate(p)
+                cls._pools[p["json"]["mainNFT"]["currencySymbol"]] = (
+                    VyFiPoolDefinition.model_validate(p)
+                )
             cls._pools_refresh = time.time()
         except requests.RequestException as e:
             # Log the error or handle it as appropriate for your application
@@ -430,6 +430,8 @@ class VyFiCPPState(AbstractConstantProductPoolState):
 
         if assets.unit() == "lovelace":
             assets.root[assets.unit(0)] -= 2000000
+            if assets["lovelace"] == 0:
+                assets.pop("lovelace")
 
         assets.root[assets.unit(0)] -= datum.token_a_fees
         assets.root[assets.unit(1)] -= datum.token_b_fees
