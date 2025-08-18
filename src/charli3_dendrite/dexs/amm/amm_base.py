@@ -3,6 +3,7 @@
 from abc import abstractmethod
 from decimal import Decimal
 from typing import Any
+from warnings import warn
 
 from pycardano import Address  # type: ignore
 from pycardano import DeserializeException
@@ -133,6 +134,7 @@ class AbstractPoolState(AbstractPairState):
             address_source (Address): The source address for the swap.
             in_assets (Assets): The assets being swapped in.
             out_assets (Assets): The assets being swapped out.
+            tx_builder (TransactionBuilder | None, optional): The transaction builder.
             extra_assets (Assets | None, optional): Any additional assets involved.
             Defaults to None.
             address_target (Address | None, optional): The target address for the swap.
@@ -472,7 +474,8 @@ class AbstractPoolState(AbstractPairState):
                         + f"    Expected: {token}\n"
                         + f"    Actual: {values['assets']}"
                     )
-                    raise InvalidPoolError(msg) from KeyError
+                    pair.root.update({token: 0})
+                    warn(msg)  # noqa: B028
 
         _ = cls.extract_dex_nft(values)
 
