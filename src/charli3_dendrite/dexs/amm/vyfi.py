@@ -247,6 +247,12 @@ class VyFiCPPState(AbstractConstantProductPoolState):
             if not any(p in cls.pools() for p in values["pool_nft"]):
                 raise ValueError("Invalid pool NFT")
 
+            values["lp_fee"] = cls.pools()[
+                next(iter(values["pool_nft"]))
+            ].json_.fees_settings.liq_fee
+            values["bar_fee"] = cls.pools()[
+                next(iter(values["pool_nft"]))
+            ].json_.fees_settings.bar_fee
             return True
 
         return False
@@ -348,9 +354,9 @@ class VyFiCPPState(AbstractConstantProductPoolState):
             cls._pools = {}
             for p in response.json():
                 p["json"] = json.loads(p["json"])
-                cls._pools[p["json"]["mainNFT"]["currencySymbol"]] = (
-                    VyFiPoolDefinition.model_validate(p)
-                )
+                cls._pools[
+                    p["json"]["mainNFT"]["currencySymbol"]
+                ] = VyFiPoolDefinition.model_validate(p)
             cls._pools_refresh = time.time()
         except requests.RequestException as e:
             # Log the error or handle it as appropriate for your application
