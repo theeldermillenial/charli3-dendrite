@@ -7,6 +7,7 @@ from typing import Any
 from typing import ClassVar
 from typing import List
 from typing import Union
+from typing import cast
 
 from pycardano import Address
 from pycardano import Datum
@@ -30,6 +31,10 @@ from charli3_dendrite.dataclasses.models import OrderType
 from charli3_dendrite.dataclasses.models import PoolSelector
 from charli3_dendrite.dexs.amm.amm_types import AbstractConstantProductPoolState
 from charli3_dendrite.dexs.amm.amm_types import AbstractStableSwapPoolState
+from charli3_dendrite.dexs.amm.sundae_v4_stableswap_math import STABLESWAP_PRECISION
+from charli3_dendrite.dexs.amm.sundae_v4_stableswap_math import stableswap_d
+from charli3_dendrite.dexs.amm.sundae_v4_stableswap_math import stableswap_swap
+from charli3_dendrite.dexs.amm.sundae_v4_stableswap_math import stableswap_y
 from charli3_dendrite.dexs.core.errors import InvalidPoolError
 from charli3_dendrite.dexs.core.errors import NoAssetsError
 from charli3_dendrite.dexs.core.errors import NotAPoolError
@@ -37,6 +42,11 @@ from charli3_dendrite.dexs.core.errors import NotAPoolError
 # A swap-all SundaeSwap V3 stableswap order offers this multiple of its expected
 # input, so any realistic delivery is swapped in full.
 SWAP_ALL_OFFER_MULTIPLE = 2
+
+# The largest quantity of one asset a ledger value can hold.
+_LEDGER_MAX = 2**64 - 1
+# Swap fees are quoted in basis points.
+_FEE_BASIS = 10_000
 
 
 @dataclass
@@ -806,7 +816,35 @@ class SundaeSwapV3CPPState(AbstractConstantProductPoolState):
         return datum
 
 
+@dataclass(frozen=True)
+class SundaeV3StableSwapResult:
+    """One swap against a SundaeSwap V3 stableswap pool, as the contract settles it.
+
+    ``gross`` is the out-side amount the curve releases, ``fee`` the swap fee taken
+    from it (rounded up), ``takes`` what the trader receives (``gross - fee``) and
+    ``protocol_share`` the part of ``fee`` the pool books as protocol fees. The
+    out-side reserve drops by ``takes + protocol_share``; the rest of the fee stays
+    with liquidity providers.
+    """
+
+    takes: int
+    gross: int
+    fee: int
+    protocol_share: int
+
+
 class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
+    """SundaeSwap V3 stableswap pool.
+
+    The pool prices two reserves on the curve ``4A(x + y) + D = 4AD + D^3 / (4xy)``
+    over reserves scaled by :data:`STABLESWAP_PRECISION`, with the contract's exact
+    integer rounding: the swap fee is taken from the output, rounded up. Reserves
+    are the pool UTxO's holdings net of the asset-side protocol fees its datum has
+    accrued (``protocol_fees[1]`` and ``protocol_fees[2]``). The scooper ADA
+    accrual (``protocol_fees[0]``) is not netted, so on an ADA-paired pool the
+    lovelace reserve still holds it.
+    """
+
     _batcher = Assets(lovelace=500000)
     _deposit = Assets(lovelace=2000000)
     _stake_address: ClassVar[Address] = Address.from_primitive(
@@ -814,7 +852,8 @@ class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
     )
 
     _amp: int | None = None
-    _sum_invariant: int | None = None
+    _protocol_bps: tuple[int, int] | None = None
+    _d_memo: tuple[tuple[int, int, int], int] | None = None
 
     def batcher_fee(
         self,
@@ -907,7 +946,13 @@ class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
                 else:
                     values["assets"]["lovelace"] = values["assets"].pop("lovelace")
 
-            cls.post_init(values)
+            # Already-parsed reserves are net of protocol fees: never subtract them.
+            values["assets"] = Assets.model_validate(values["assets"])
+            super().post_init(values)
+            datum = SundaeV3StablePoolDatum.from_cbor(values["datum_cbor"])
+            values["fee"] = cls._datum_fees(datum)
+
+            cls.get_batcher_fee()
             return True
         else:
             return False
@@ -922,8 +967,20 @@ class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
             else:
                 raise NotAPoolError("No pool NFT found.")
 
+    @staticmethod
+    def _datum_fees(datum: SundaeV3StablePoolDatum) -> list[int]:
+        """The swap fee per offered side: liquidity plus protocol basis points."""
+        return [
+            lp + protocol
+            for lp, protocol in zip(
+                datum.lp_fee_basis_points,
+                datum.protocol_fee_basis_points,
+            )
+        ]
+
     @classmethod
     def post_init(cls, values):
+        """Parse a raw pool UTxO, netting the asset-side protocol fees it holds."""
         super().post_init(values)
 
         assets = values["assets"]
@@ -932,10 +989,7 @@ class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
         assets.root[assets.unit(0)] -= datum.protocol_fees[1]
         assets.root[assets.unit(1)] -= datum.protocol_fees[2]
 
-        values["fee"] = [
-            l + p
-            for l, p in zip(datum.lp_fee_basis_points, datum.protocol_fee_basis_points)
-        ]
+        values["fee"] = cls._datum_fees(datum)
 
         cls.get_batcher_fee()
 
@@ -946,19 +1000,224 @@ class SundaeSwapV3StableSwap(AbstractStableSwapPoolState):
 
         return self._amp
 
+    @property
+    def protocol_fee_basis_points(self) -> tuple[int, int]:
+        """The protocol's basis points of the swap fee, per offered side."""
+        if self._protocol_bps is None:
+            datum = cast(SundaeV3StablePoolDatum, self.pool_datum)
+            bps = datum.protocol_fee_basis_points
+            self._protocol_bps = (bps[0], bps[1])
+        return self._protocol_bps
+
+    def sum_invariant(self) -> int:
+        """The invariant ``D`` of the current reserves.
+
+        Computed from the reserves, never read from the datum, so reserves moved
+        past the datum still quote exactly. Zero when a side is empty. Memoised on
+        the reserves, so a move made directly on ``assets`` never serves a stale
+        value.
+        """
+        key = (self.assets.quantity(0), self.assets.quantity(1), self.amp)
+        if self._d_memo is not None and self._d_memo[0] == key:
+            return self._d_memo[1]
+        d = stableswap_d(
+            self.amp,
+            key[0] * STABLESWAP_PRECISION,
+            key[1] * STABLESWAP_PRECISION,
+        )
+        self._d_memo = (key, d)
+        return d
+
+    def _swap_side(self, unit: str) -> int:
+        """The reserve index of ``unit``.
+
+        Raises:
+            ValueError: ``unit`` is not one of the pool's two reserves.
+        """
+        if unit == self.unit_a:
+            return 0
+        if unit == self.unit_b:
+            return 1
+        msg = f"Asset {unit} is invalid for pool {self.unit_a}-{self.unit_b}"
+        raise ValueError(msg)
+
+    def _single(self, asset: Assets) -> tuple[str, int, int]:
+        """The unit, reserve index and quantity of a one-asset ``asset``.
+
+        Raises:
+            ValueError: ``asset`` is not exactly one of the pool's reserves, or
+                its quantity is negative.
+        """
+        if len(asset) != 1:
+            msg = "Asset should only have one token."
+            raise ValueError(msg)
+        unit = asset.unit()
+        side = self._swap_side(unit)
+        quantity = asset.quantity()
+        if quantity < 0:
+            msg = f"Quantity of {unit} is negative."
+            raise ValueError(msg)
+        return unit, side, quantity
+
+    def _side_fee(self, side: int) -> int:
+        """The swap fee, in basis points, of a trade offering reserve ``side``."""
+        fee = self.volume_fee
+        if fee is None:
+            return 0
+        if isinstance(fee, (int, float)):
+            return int(fee)
+        return int(fee[side])
+
+    def _swap(self, side: int, amount: int) -> SundaeV3StableSwapResult:
+        """The settled swap offering ``amount`` of reserve ``side``.
+
+        All zero for no offer, or when a side is empty.
+        """
+        reserve_in = self.assets.quantity(side)
+        reserve_out = self.assets.quantity(1 - side)
+        if amount <= 0 or reserve_in <= 0 or reserve_out <= 0:
+            return SundaeV3StableSwapResult(takes=0, gross=0, fee=0, protocol_share=0)
+        fee = self._side_fee(side)
+        quote = stableswap_swap(
+            self.amp,
+            self.sum_invariant(),
+            reserve_in,
+            1,
+            reserve_out,
+            1,
+            amount,
+            (fee, _FEE_BASIS),
+        )
+        protocol = self.protocol_fee_basis_points[side]
+        protocol_share = quote.fee * protocol // fee if fee > 0 else 0
+        return SundaeV3StableSwapResult(
+            takes=quote.takes,
+            gross=quote.gross,
+            fee=quote.fee,
+            protocol_share=protocol_share,
+        )
+
+    def swap_result(self, asset: Assets) -> SundaeV3StableSwapResult:
+        """The settled swap offering the one-asset ``asset``.
+
+        All zero for no offer, or when a side is empty.
+
+        Raises:
+            ValueError: ``asset`` is not exactly one of the pool's reserves, or
+                its quantity is negative.
+        """
+        _, side, amount = self._single(asset)
+        return self._swap(side, amount)
+
     def get_amount_out(
         self,
         asset: Assets,
         precise: bool = True,
     ) -> tuple[Assets, float]:
-        return super().get_amount_out(asset, precise=precise, fee_on_input=True)
+        """The exact output for the one-asset offer ``asset``.
+
+        The output is the contract's payout, an integer whatever ``precise`` is:
+        zero for no offer, or when a side is empty. The second value is always 0.
+
+        Raises:
+            ValueError: ``asset`` is not exactly one of the pool's reserves, or
+                its quantity is negative.
+        """
+        _, side, amount = self._single(asset)
+        out_unit = self.unit_b if side == 0 else self.unit_a
+        return Assets(**{out_unit: self._swap(side, amount).takes}), 0
+
+    def max_output(self, out_unit: str) -> int:
+        """The smallest undeliverable output of ``out_unit``.
+
+        One past what the largest ledger offer of the other reserve buys: the
+        output never decreases as the offer grows. One when a side is empty, as
+        no offer then delivers anything.
+
+        Raises:
+            ValueError: ``out_unit`` is not one of the pool's reserves.
+        """
+        side = 1 - self._swap_side(out_unit)
+        return self._swap(side, _LEDGER_MAX).takes + 1
 
     def get_amount_in(
         self,
         asset: Assets,
         precise: bool = True,
     ) -> tuple[Assets, float]:
-        return super().get_amount_in(asset, precise=precise, fee_on_input=True)
+        """The least offer whose exact output reaches the one-asset ``asset``.
+
+        Zero for no output. The input is an integer whatever ``precise`` is. The
+        second value is always 0.
+
+        Raises:
+            ValueError: ``asset`` is not exactly one of the pool's reserves, or
+                its quantity is negative.
+            InvalidPoolError: no ledger quantity of the other reserve reaches the
+                output (it is at or past :meth:`max_output`), which holds for any
+                positive output when a side is empty.
+        """
+        _, out_side, want = self._single(asset)
+        side = 1 - out_side
+        in_unit = self.unit_a if side == 0 else self.unit_b
+        if want == 0:
+            return Assets(**{in_unit: 0}), 0
+        reserve_in = self.assets.quantity(side)
+        reserve_out = self.assets.quantity(out_side)
+        offer = None
+        if reserve_in > 0 and reserve_out > 0:
+            offer = self._least_offer(side, want)
+        if offer is None:
+            msg = (
+                f"{type(self).__name__}: no amount of {in_unit} reaches {want} "
+                f"of {asset.unit()}."
+            )
+            raise InvalidPoolError(msg)
+        return Assets(**{in_unit: offer}), 0
+
+    def _least_offer(self, side: int, want: int) -> int | None:
+        """The least offer of reserve ``side`` whose takes reach ``want``.
+
+        ``None`` when no ledger quantity does. The output is released by the curve
+        as ``gross`` and the fee taken from it, so the least ``gross`` netting
+        ``want`` is found first. The post-swap out-side reserve must then be at most
+        ``Y = (reserve_out - gross) * P``; the curve is symmetric in its two
+        reserves, so the least in-side reserve on or above it at ``Y`` is
+        ``stableswap_y(D, Y)``, and the offer is what lifts the in-side reserve
+        there. A final step against the exact quote pins the minimum.
+        """
+        fee = self._side_fee(side)
+        if fee >= _FEE_BASIS:
+            return None
+        reserve_in = self.assets.quantity(side)
+        reserve_out = self.assets.quantity(1 - side)
+
+        def net(gross: int) -> int:
+            return gross - (gross * fee + _FEE_BASIS - 1) // _FEE_BASIS
+
+        gross = -(-want * _FEE_BASIS // (_FEE_BASIS - fee))
+        while net(gross) < want:
+            gross += 1
+        while gross > 1 and net(gross - 1) >= want:
+            gross -= 1
+        if gross >= reserve_out:
+            return None
+
+        x_min = stableswap_y(
+            self.amp,
+            self.sum_invariant(),
+            (reserve_out - gross) * STABLESWAP_PRECISION,
+        )
+        offer = max(-(-x_min // STABLESWAP_PRECISION) - reserve_in, 1)
+        if offer > _LEDGER_MAX:
+            return None
+        while self._swap(side, offer).takes < want:
+            offer += 1
+            if offer > _LEDGER_MAX:
+                return None
+        while offer > 1 and self._swap(side, offer - 1).takes >= want:
+            offer -= 1
+        return offer
 
     def swap_datum(
         self,

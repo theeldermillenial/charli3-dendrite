@@ -27,6 +27,7 @@ SundaeSwap provides two distinct versions, each designed for different use cases
 |------------|---------|-------------|--------------|
 | `SundaeSwapCPPState` | V1 | Traditional constant product pools | Simple fee structure, proven reliability |
 | `SundaeSwapV3CPPState` | V3 | Enhanced constant product pools | Dynamic fees, protocol sustainability, advanced optimization |
+| `SundaeSwapV3StableSwap` | V3 | Stableswap pools | Exact integer quotes in both directions |
 
 ## Key Features
 
@@ -42,6 +43,26 @@ SundaeSwap provides two distinct versions, each designed for different use cases
 - **Enhanced Capital Efficiency**: Advanced algorithms for better liquidity utilization
 - **Settings-Based Configuration**: Dynamic fee adjustment based on on-chain settings
 - **Market Timing**: Support for market open/close timing mechanisms
+
+### V3 Stableswap Pools
+
+`SundaeSwapV3StableSwap` prices two reserves on Curve's invariant
+`4A(x + y) + D = 4AD + D^3 / (4xy)` with the contract's exact integer rounding,
+using the shared stableswap math in `charli3_dendrite.dexs.amm.sundae_v4_stableswap_math`
+at rate 1. The swap fee is taken from the curve's output, rounded up.
+
+- `get_amount_out` is the exact payout for an offer.
+- `get_amount_in` is the least offer whose payout reaches the asked amount. It
+  raises `InvalidPoolError` when no ledger quantity reaches it, which holds from
+  `max_output` upwards and for any positive amount when a side is empty.
+- `swap_result` also reports the gross output, the fee, and the protocol share of
+  the fee. The out-side reserve drops by the payout plus the protocol share.
+- `sum_invariant()` recomputes `D` from the current reserves rather than reading
+  the datum, so reserves moved past the datum still quote exactly.
+
+Reserves are the pool UTxO's holdings net of the asset-side protocol fees the datum
+has accrued. The scooper ADA accrual is not netted from an ADA-paired pool's
+lovelace reserve.
 
 ## Basic Usage
 
@@ -89,22 +110,22 @@ for pool_info in pools:
 ```python
 def analyze_sundae_fees():
     """Compare SundaeSwap V1 vs V3 fee structures."""
-    
+
     # V1 fee analysis
     v1_pool = SundaeSwapCPPState.model_validate(v1_pool_data)
     print("SundaeSwap V1 Fee Structure:")
     print(f"  Trading Fee: {v1_pool.fee}bp")
     print(f"  Batcher Fee: {v1_pool.batcher_fee()}")
     print(f"  Fee Model: Fixed percentage")
-    
-    # V3 fee analysis  
+
+    # V3 fee analysis
     v3_pool = SundaeSwapV3CPPState.model_validate(v3_pool_data)
     print("\nSundaeSwap V3 Fee Structure:")
     print(f"  Bid Fee: {v3_pool.fee[0]}bp")
     print(f"  Ask Fee: {v3_pool.fee[1]}bp")
     print(f"  Batcher Fee: {v3_pool.batcher_fee()}")
     print(f"  Fee Model: Dynamic bidirectional")
-    
+
     # Demonstrate dynamic batcher fee retrieval
     SundaeSwapV3CPPState.get_batcher_fee()
     print(f"  Current V3 Batcher Fee: {SundaeSwapV3CPPState._batcher_fee}")
@@ -119,7 +140,7 @@ analyze_sundae_fees()
 ```python
 def compare_sundae_versions():
     """Compare SundaeSwap V1 and V3 implementations."""
-    
+
     comparison = {
         'V1': {
             'script_type': 'PlutusV1',
@@ -129,19 +150,19 @@ def compare_sundae_versions():
             'pool_policy': '0029cb7c88c7567b63d1a512c0ed626aa169688ec980730c0473b91370'
         },
         'V3': {
-            'script_type': 'PlutusV2', 
+            'script_type': 'PlutusV2',
             'fee_structure': 'Dynamic bid/ask fees',
             'batcher_fee': 'Dynamic (based on settings)',
             'target_audience': 'Advanced users, market makers',
             'pool_policy': 'e0302560ced2fdcbfcb2602697df970cd0d6a38f94b32703f51c312b'
         }
     }
-    
+
     for version, features in comparison.items():
         print(f"\nSundaeSwap {version}:")
         for feature, value in features.items():
             print(f"  {feature}: {value}")
-    
+
     return comparison
 
 version_comparison = compare_sundae_versions()
@@ -152,15 +173,15 @@ version_comparison = compare_sundae_versions()
 ```python
 def analyze_all_sundae_pools():
     """Analyze both V1 and V3 pools for comprehensive insights."""
-    
+
     # Query V1 pools
     v1_selector = SundaeSwapCPPState.pool_selector()
     v1_pools = backend.get_pool_utxos(**v1_selector.model_dump())
-    
+
     # Query V3 pools
     v3_selector = SundaeSwapV3CPPState.pool_selector()
     v3_pools = backend.get_pool_utxos(**v3_selector.model_dump())
-    
+
     analysis_results = {
         'v1_stats': {
             'total_pools': len(v1_pools),
@@ -174,17 +195,17 @@ def analyze_all_sundae_pools():
             'avg_ask_fee': 0
         }
     }
-    
+
     # Analyze V1 pools
     v1_fees = []
     for pool_info in v1_pools:
         pool = SundaeSwapCPPState.model_validate(pool_info.model_dump())
         analysis_results['v1_stats']['total_tvl'] += pool.tvl
         v1_fees.append(pool.fee)
-    
+
     if v1_fees:
         analysis_results['v1_stats']['avg_fee'] = sum(v1_fees) / len(v1_fees)
-    
+
     # Analyze V3 pools
     v3_bid_fees = []
     v3_ask_fees = []
@@ -194,11 +215,11 @@ def analyze_all_sundae_pools():
         if isinstance(pool.fee, list):
             v3_bid_fees.append(pool.fee[0])
             v3_ask_fees.append(pool.fee[1])
-    
+
     if v3_bid_fees:
         analysis_results['v3_stats']['avg_bid_fee'] = sum(v3_bid_fees) / len(v3_bid_fees)
         analysis_results['v3_stats']['avg_ask_fee'] = sum(v3_ask_fees) / len(v3_ask_fees)
-    
+
     print("SundaeSwap Ecosystem Analysis:")
     print(f"V1 Pools: {analysis_results['v1_stats']['total_pools']}")
     print(f"V1 TVL: {analysis_results['v1_stats']['total_tvl']}")
@@ -207,7 +228,7 @@ def analyze_all_sundae_pools():
     print(f"V3 TVL: {analysis_results['v3_stats']['total_tvl']}")
     print(f"V3 Avg Bid Fee: {analysis_results['v3_stats']['avg_bid_fee']:.2f}bp")
     print(f"V3 Avg Ask Fee: {analysis_results['v3_stats']['avg_ask_fee']:.2f}bp")
-    
+
     return analysis_results
 
 # Execute comprehensive analysis
@@ -219,11 +240,11 @@ sundae_analysis = analyze_all_sundae_pools()
 ```python
 def monitor_v3_settings():
     """Monitor SundaeSwap V3 dynamic settings and fee updates."""
-    
+
     try:
         # Retrieve current V3 settings from on-chain
         SundaeSwapV3CPPState.get_batcher_fee()
-        
+
         settings_info = {
             'current_batcher_fee': SundaeSwapV3CPPState._batcher_fee,
             'fee_components': {
@@ -233,15 +254,15 @@ def monitor_v3_settings():
             'update_frequency': 'Cached for 1 hour intervals',
             'settings_address': 'addr1w9ke67k2ckdyg60v22ajqugxze79e0ax3yqgl7nway4vc5q84hpqs'
         }
-        
+
         print("SundaeSwap V3 Dynamic Settings:")
         for key, value in settings_info.items():
             print(f"  {key}: {value}")
-            
+
     except Exception as e:
         print(f"Settings retrieval failed: {e}")
         print("This is normal when no backend is configured")
-    
+
     return settings_info
 
 # Monitor current settings
@@ -255,15 +276,15 @@ v3_settings = monitor_v3_settings()
 ```python
 def find_optimal_sundae_pool(token_a: str, token_b: str, trade_amount: int):
     """Find the optimal SundaeSwap pool for a given trade."""
-    
+
     # Check both V1 and V3 pools for the trading pair
     v1_pools = backend.get_pool_utxos(**SundaeSwapCPPState.pool_selector().model_dump())
     v3_pools = backend.get_pool_utxos(**SundaeSwapV3CPPState.pool_selector().model_dump())
-    
+
     best_pool = None
     best_output = 0
     best_version = None
-    
+
     # Analyze V1 pools
     for pool_info in v1_pools:
         try:
@@ -272,14 +293,14 @@ def find_optimal_sundae_pool(token_a: str, token_b: str, trade_amount: int):
                 # Calculate expected output for this pool
                 input_assets = Assets({token_a: trade_amount})
                 output_assets, slippage = pool.get_amount_out(input_assets)
-                
+
                 if output_assets.quantity() > best_output:
                     best_output = output_assets.quantity()
                     best_pool = pool
                     best_version = "V1"
         except Exception:
             continue
-    
+
     # Analyze V3 pools
     for pool_info in v3_pools:
         try:
@@ -288,14 +309,14 @@ def find_optimal_sundae_pool(token_a: str, token_b: str, trade_amount: int):
                 # Calculate expected output for this pool
                 input_assets = Assets({token_a: trade_amount})
                 output_assets, slippage = pool.get_amount_out(input_assets)
-                
+
                 if output_assets.quantity() > best_output:
                     best_output = output_assets.quantity()
                     best_pool = pool
                     best_version = "V3"
         except Exception:
             continue
-    
+
     return {
         'best_pool': best_pool,
         'best_version': best_version,
@@ -314,7 +335,7 @@ print(f"Expected Output: {optimal_pool['expected_output']}")
 ```python
 def analyze_lp_opportunities():
     """Analyze liquidity provision opportunities across SundaeSwap versions."""
-    
+
     strategies = {
         'conservative': {
             'recommendation': 'SundaeSwap V1',
@@ -335,13 +356,13 @@ def analyze_lp_opportunities():
             'target_pairs': ['Balanced portfolio across versions']
         }
     }
-    
+
     print("SundaeSwap Liquidity Provider Strategies:")
     for strategy_name, details in strategies.items():
         print(f"\n{strategy_name.title()} Strategy:")
         for key, value in details.items():
             print(f"  {key}: {value}")
-    
+
     return strategies
 
 lp_strategies = analyze_lp_opportunities()
@@ -354,14 +375,14 @@ lp_strategies = analyze_lp_opportunities()
 ```python
 def validate_sundae_pool(pool_data: dict, expected_version: str = None):
     """Validate and identify SundaeSwap pool version."""
-    
+
     validation_results = {
         'is_valid': False,
         'version': None,
         'pool_policy': None,
         'validation_errors': []
     }
-    
+
     try:
         # Try V1 validation
         if expected_version != "V3":
@@ -373,7 +394,7 @@ def validate_sundae_pool(pool_data: dict, expected_version: str = None):
                 return validation_results
             except Exception as e:
                 validation_results['validation_errors'].append(f"V1 validation failed: {e}")
-        
+
         # Try V3 validation
         if expected_version != "V1":
             try:
@@ -384,10 +405,10 @@ def validate_sundae_pool(pool_data: dict, expected_version: str = None):
                 return validation_results
             except Exception as e:
                 validation_results['validation_errors'].append(f"V3 validation failed: {e}")
-        
+
     except Exception as e:
         validation_results['validation_errors'].append(f"General validation error: {e}")
-    
+
     return validation_results
 
 # Example validation
@@ -401,32 +422,32 @@ print(f"Is Valid: {pool_validation['is_valid']}")
 ```python
 def compare_fee_calculations(trade_amount: int):
     """Compare fee calculations between V1 and V3."""
-    
+
     fee_comparison = {
         'trade_amount': trade_amount,
         'v1_calculations': {},
         'v3_calculations': {}
     }
-    
+
     # V1 fee calculation (fixed percentage)
     v1_pool = SundaeSwapCPPState()
     v1_batcher_fee = v1_pool.batcher_fee()
     v1_trading_fee = trade_amount * v1_pool.fee / 10000 if hasattr(v1_pool, 'fee') else 0
-    
+
     fee_comparison['v1_calculations'] = {
         'batcher_fee': v1_batcher_fee.get('lovelace', 0),
         'trading_fee': v1_trading_fee,
         'total_fee_ada': v1_batcher_fee.get('lovelace', 0) / 1000000,
         'fee_model': 'Fixed percentage'
     }
-    
+
     # V3 fee calculation (dynamic)
     v3_pool = SundaeSwapV3CPPState()
     try:
         v3_batcher_fee = v3_pool.batcher_fee()
         v3_bid_fee = trade_amount * 30 / 10000  # Example bid fee
         v3_ask_fee = trade_amount * 30 / 10000  # Example ask fee
-        
+
         fee_comparison['v3_calculations'] = {
             'batcher_fee': v3_batcher_fee.get('lovelace', 0),
             'bid_fee': v3_bid_fee,
@@ -438,13 +459,13 @@ def compare_fee_calculations(trade_amount: int):
         fee_comparison['v3_calculations'] = {
             'error': 'V3 settings not available'
         }
-    
+
     print("SundaeSwap Fee Comparison:")
     print(f"Trade Amount: {trade_amount/1000000} ADA")
     print(f"V1 Total Fee: {fee_comparison['v1_calculations']['total_fee_ada']:.2f} ADA")
     if 'error' not in fee_comparison['v3_calculations']:
         print(f"V3 Total Fee: {fee_comparison['v3_calculations']['total_fee_ada']:.2f} ADA")
-    
+
     return fee_comparison
 
 # Example fee comparison
@@ -468,10 +489,10 @@ def create_sundae_swap_order(
     pool_identifier: str
 ):
     """Create a SundaeSwap order for either V1 or V3."""
-    
+
     input_assets = Assets({input_asset: input_amount})
     output_assets = Assets({output_asset: min_output})
-    
+
     if version.upper() == "V1":
         # V1 order creation
         ident = bytes.fromhex(pool_identifier[60:])  # Last 32 chars for V1
@@ -483,15 +504,15 @@ def create_sundae_swap_order(
             fee=2500000  # V1 fixed batcher fee
         )
         print(f"Created SundaeSwap V1 order")
-        
+
     elif version.upper() == "V3":
-        # V3 order creation  
+        # V3 order creation
         ident = bytes.fromhex(pool_identifier[64:])  # Last 28 chars for V3
-        
+
         # Get current V3 settings for dynamic fee
         SundaeSwapV3CPPState.get_batcher_fee()
         current_fee = SundaeSwapV3CPPState._batcher_fee.get('lovelace', 1280000)
-        
+
         order_datum = SundaeV3OrderDatum.create_datum(
             ident=ident,
             address_source=source_address,
@@ -500,10 +521,10 @@ def create_sundae_swap_order(
             fee=current_fee
         )
         print(f"Created SundaeSwap V3 order with dynamic fee: {current_fee}")
-    
+
     else:
         raise ValueError(f"Unsupported version: {version}")
-    
+
     return order_datum
 
 # Example order creation
@@ -549,7 +570,7 @@ SundaeSwap has established itself as the community favorite through:
 ```python
 def sundae_ecosystem_analysis():
     """Analyze SundaeSwap's role in the broader Cardano ecosystem."""
-    
+
     ecosystem_position = {
         'primary_role': 'Community AMM',
         'target_users': ['DeFi beginners', 'Community members', 'Casual traders'],
@@ -566,11 +587,11 @@ def sundae_ecosystem_analysis():
             'Educational platforms'
         ]
     }
-    
+
     print("SundaeSwap Ecosystem Analysis:")
     for key, value in ecosystem_position.items():
         print(f"{key}: {value}")
-    
+
     return ecosystem_position
 
 ecosystem_analysis = sundae_ecosystem_analysis()
