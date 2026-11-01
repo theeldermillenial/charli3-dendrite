@@ -1,0 +1,281 @@
+{
+  "description": "SundaeSwap V3 stableswap scoops on mainnet: the pool UTxO's reserves net of the datum's protocol fees, one swap order against it, and what the contract paid and left in the pool.",
+  "swaps": [
+    {
+      "pool_utxo": "4c0bbe724c8e31d9bc3f0fabb55fa051de9b4d79d6015eb4ffcc06555fea7a15#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140d7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb6",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "reserves": [
+        71192807517,
+        208117996493
+      ],
+      "datum_cbor": "d8799f581cd7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb69f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad480014df105553444dffff1b0000004027f27f3d9f0505ff9f0101ffd87a80009f1a45870dd31a05f3014f1a05f94024ff1901f4c24a3b2313dcbc603d277e65d87a80ff",
+      "offer_unit": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "offer": 614614674,
+      "takes": 615277517,
+      "gross": 615646906,
+      "fee": 369389,
+      "protocol_share": 61564,
+      "min_offer": 614614674,
+      "reserves_after": [
+        71807422191,
+        207502657412
+      ],
+      "sum_invariant_after": 279266997403964530190767
+    },
+    {
+      "pool_utxo": "ede943155c042bce8e5170476713b43615d30d9a2ba80bc1d770ad31cb185ccc#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140f8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d98",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "reserves": [
+        478135133,
+        10980079258
+      ],
+      "datum_cbor": "d8799f581cf8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d989f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ffff1b0000000282c946ee9f0505ff9f0000ffd87a80009f1a184aeb5e0000ff1901f4c24a026b88c2ea978975b6ced87a80ff",
+      "offer_unit": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "offer": 1000000000,
+      "takes": 1022350977,
+      "gross": 1022862409,
+      "fee": 511432,
+      "protocol_share": 0,
+      "min_offer": 1000000000,
+      "reserves_after": [
+        1478135133,
+        9957728281
+      ],
+      "sum_invariant_after": 11428899918154057593566
+    },
+    {
+      "pool_utxo": "1828e038092d9a09d5f2500f2620e2f3a85126688cebba0a9704bf68800d2ac4#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140d7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb6",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "reserves": [
+        112921666940,
+        166477558883
+      ],
+      "datum_cbor": "d8799f581cd7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb69f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad480014df105553444dffff1b0000004027f27f3d9f0505ff9f0101ffd87a80009f1a480e725f1a06951c0a1a06db2bdbff1901f4c24a3b29f94c45aabc7fdc09d87a80ff",
+      "offer_unit": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "offer": 2543217305,
+      "takes": 2540584476,
+      "gross": 2542109742,
+      "fee": 1525266,
+      "protocol_share": 254211,
+      "min_offer": 2543217305,
+      "reserves_after": [
+        110380828253,
+        169020776188
+      ],
+      "sum_invariant_after": 279395174184862836836559
+    },
+    {
+      "pool_utxo": "2202bc5cc377b417fa82753b15c37ca29afb97a94e9b86a40c934f74ac0e5be2#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140d7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb6",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "reserves": [
+        109320529723,
+        170082102445
+      ],
+      "datum_cbor": "d8799f581cd7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb69f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad480014df105553444dffff1b0000004027f27f3d9f0505ff9f0101ffd87a80009f1a482e1f301a069a9b6f1a06db2bdbff1901f4c24a3b2a124e0a301cf6689bd87a80ff",
+      "offer_unit": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "offer": 10012000000,
+      "takes": 10000196003,
+      "gross": 10006199723,
+      "fee": 6003720,
+      "protocol_share": 1000620,
+      "min_offer": 10012000000,
+      "reserves_after": [
+        99319333100,
+        180094102445
+      ],
+      "sum_invariant_after": 279400709833383986552841
+    },
+    {
+      "pool_utxo": "43e99ae804ac18fca3599ac2ae3dabcecffb17256ad5ebceff10c24e517ae18b#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de1405a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c",
+      "unit_a": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "unit_b": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "reserves": [
+        5660014800,
+        421429451
+      ],
+      "datum_cbor": "d8799f581c5a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c9f9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ff9f581cfe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae4564455534441ffff1b000000013f941bd59f0808ff9f0202ffd8799fd8799f581c55bf4118b01e1c794647db9375ffc873e435d737007b2adbc48cdbaaffff009f1a0869110a1a006e18e31a006f028aff1901f4c24a01493442a6935b6fe79ad8799fd8799f581c55bf4118b01e1c794647db9375ffc873e435d737007b2adbc48cdbaaffffff",
+      "offer_unit": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "offer": 1254927651,
+      "takes": 1261603094,
+      "gross": 1262865960,
+      "fee": 1262866,
+      "protocol_share": 252573,
+      "min_offer": 1254927651,
+      "reserves_after": [
+        4398159133,
+        1676357102
+      ],
+      "sum_invariant_after": 6073754331658263509066
+    },
+    {
+      "pool_utxo": "abbe42d753c8080aa7c0638ffc68bf6e8e7874647aa20f4a333dd8efc03066c9#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de1405a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c",
+      "unit_a": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "unit_b": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "reserves": [
+        5393705165,
+        686984625
+      ],
+      "datum_cbor": "d8799f581c5a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c9f9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ff9f581cfe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae4564455534441ffff1b000000013f941bd59f0808ff9f0202ffd8799fd8799f581c55bf4118b01e1c794647db9375ffc873e435d737007b2adbc48cdbaaffff009f1a08a83f5f1a007504961a007515faff1901f4c24a014963a9614ee937dc5bd8799fd8799f581c55bf4118b01e1c794647db9375ffc873e435d737007b2adbc48cdbaaffffff",
+      "offer_unit": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "offer": 363478409,
+      "takes": 365371221,
+      "gross": 365736958,
+      "fee": 365737,
+      "protocol_share": 73147,
+      "min_offer": 363478409,
+      "reserves_after": [
+        5028260797,
+        1050463034
+      ],
+      "sum_invariant_after": 6076452457810343758672
+    },
+    {
+      "pool_utxo": "f8e881995f9ef4dc159af1e2db126f8b6ec60030833101bce143c013e397f921#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140f8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d98",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "reserves": [
+        1032873810,
+        10408456992
+      ],
+      "datum_cbor": "d8799f581cf8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d989f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ffff1b0000000282c946ee9f0505ff9f0000ffd87a80009f1a1895597d0000ff1901f4c24a026b9abc5b888c3b5855d87a80ff",
+      "offer_unit": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "offer": 400000000,
+      "takes": 390284792,
+      "gross": 390480033,
+      "fee": 195241,
+      "protocol_share": 0,
+      "min_offer": 400000000,
+      "reserves_after": [
+        642589018,
+        10808456992
+      ],
+      "sum_invariant_after": 11429886553415249861924
+    },
+    {
+      "pool_utxo": "b86a027ec8a312484f6a794fa207c08a14d9618b850e0b20d3890e2b4836375a#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140d7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb6",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+      "reserves": [
+        64107948997,
+        215378915775
+      ],
+      "datum_cbor": "d8799f581cd7c7a7db47ab71ef07f0aa65e6b0bcf9409977c183e85fe6f0a5feb69f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cc48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad480014df105553444dffff1b0000004027f27f3d9f0505ff9f0101ffd87a80009f1a4a0442611a06eff9741a06eb8834ff1901f4c24a3b2be1338987e8b19906d87a80ff",
+      "offer_unit": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "offer": 2000000,
+      "takes": 2003120,
+      "gross": 2004323,
+      "fee": 1203,
+      "protocol_share": 200,
+      "min_offer": 2000000,
+      "reserves_after": [
+        64109948997,
+        215376912455
+      ],
+      "sum_invariant_after": 279429060952684785205221
+    },
+    {
+      "pool_utxo": "969268d8fb4ea3e91355d2354f5691efeb2da08849fcc3d5e590b8500f9315f8#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140f8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d98",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "reserves": [
+        750446735,
+        10697586763
+      ],
+      "datum_cbor": "d8799f581cf8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d989f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ffff1b0000000282c946ee9f0505ff9f0000ffd87a80009f1a006fb6630000ff1901f4c24a026ba5fab54cb2b33013d87a80ff",
+      "offer_unit": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "offer": 228000000,
+      "takes": 218987236,
+      "gross": 219096785,
+      "fee": 109549,
+      "protocol_share": 0,
+      "min_offer": 228000000,
+      "reserves_after": [
+        531459499,
+        10925586763
+      ],
+      "sum_invariant_after": 11430609915779421720993
+    },
+    {
+      "pool_utxo": "64ad3cde307caa7ab517f23a8bc24bfc100e0f0625808f98188fb4dfaf4fa15c#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de140f8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d98",
+      "unit_a": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "unit_b": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "reserves": [
+        698101427,
+        10752056427
+      ],
+      "datum_cbor": "d8799f581cf8a2125d27c30abc547b6dc064dec0615a2ccdd88cde4227e4617d989f9f581c1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34455553444378ff9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ffff1b0000000282c946ee9f0505ff9f0000ffd87a80009f1a00b9bb0f0000ff1901f4c24a026bacfa5dacba78b009d87a80ff",
+      "offer_unit": "1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378",
+      "offer": 699069334,
+      "takes": 710280253,
+      "gross": 710635571,
+      "fee": 355318,
+      "protocol_share": 0,
+      "min_offer": 699069334,
+      "reserves_after": [
+        1397170761,
+        10041776174
+      ],
+      "sum_invariant_after": 11431353686962489941880
+    },
+    {
+      "pool_utxo": "649b4b6b017a5584a2365481a83aa80e3449b1a8edfe38f38ac2f2b31563f176#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de1405a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c",
+      "unit_a": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "unit_b": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "reserves": [
+        1167878936,
+        363262778
+      ],
+      "datum_cbor": "d8799f581c5a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c9f9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ff9f581cfe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae4564455534441ffff1a4ffbea569f0808ff9f0202ffd87a80009f1a0380e2e81a0027b9571a0024b243ff1901f4c24952fcd01b02f2f86a00d87a80ff",
+      "offer_unit": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "offer": 87964309,
+      "takes": 87637656,
+      "gross": 87725382,
+      "fee": 87726,
+      "protocol_share": 17545,
+      "min_offer": 87964309,
+      "reserves_after": [
+        1255843245,
+        275607577
+      ],
+      "sum_invariant_after": 1530920472262922311302
+    },
+    {
+      "pool_utxo": "da892113096c476986739ebda7093f69875b457c6a6964888e8813b975cdb918#0",
+      "pool_nft": "4de79a0c17180030bff4c36825cb6e99caa007bc632f789561a26d56000de1405a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c",
+      "unit_a": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "unit_b": "fe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae45655534441",
+      "reserves": [
+        1119928382,
+        415474491
+      ],
+      "datum_cbor": "d8799f581c5a61dcd83e9711bbbf283a6b8f4f5e2e0c0393d1ce6a82f38b27003c9f9f581cf66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b698804469555344ff9f581cfe7c786ab321f41c654ef6c1af7b3250a613c24e4213e0425a7ae4564455534441ffff1a4ffbea569f0808ff9f0202ffd87a80009f1a046405471a003015981a002ce35bff1901f4c24953392897231790612fd87a80ff",
+      "offer_unit": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344",
+      "offer": 217904249,
+      "takes": 216954286,
+      "gross": 217171458,
+      "fee": 217172,
+      "protocol_share": 43434,
+      "min_offer": 217904249,
+      "reserves_after": [
+        1337832631,
+        198476771
+      ],
+      "sum_invariant_after": 1535373203081044006089
+    }
+  ]
+}

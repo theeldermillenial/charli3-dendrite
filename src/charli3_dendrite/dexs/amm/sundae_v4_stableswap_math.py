@@ -1,14 +1,16 @@
-"""Exact SundaeSwap V4 stableswap math: the integers the validator admits.
+"""Exact SundaeSwap stableswap math: the integers the validators admit.
 
-The stableswap module prices two reserves on Curve's invariant
+The V4 stableswap module and the V3 stableswap pool price two reserves on Curve's
+invariant
 
     4A(x + y) + D = 4AD + D^3 / (4xy)
 
 over reserves scaled by their config rate and :data:`STABLESWAP_PRECISION`
-(``x = reserve * rate * 10**12``). The validator solves nothing: it checks that a
-step's declared ``D`` is the largest integer with ``f(D) <= 0`` and that its
-post-swap out-side reserve is the smallest integer ``y`` with ``g(y) >= 0`` (``g`` is
-``-f`` at the post-swap reserves). These functions port the contract's off-chain
+(``x = reserve * rate * 10**12``; V3 has no rates and uses rate 1). The V4
+validator solves nothing: it checks that a step's declared ``D`` is the largest
+integer with ``f(D) <= 0`` and that its post-swap out-side reserve is the smallest
+integer ``y`` with ``g(y) >= 0`` (``g`` is ``-f`` at the post-swap reserves). The V3
+pool settles on the same two brackets. These functions port the contract's off-chain
 reference: integer Newton iterations, then the one-step fix-up onto each bracket.
 Every value is a Python int and every division has non-negative operands, where
 floor division and Aiken's truncating division agree.
@@ -101,8 +103,9 @@ class StableSwapQuote:
     """One swap step as the validator pins it.
 
     ``raw_swap_result`` is the scaled out-side reserve delta, ``gross`` its token
-    amount, ``fee`` the ceiled swap fee (it stays in the reserve) and ``takes`` what
-    the trader receives.
+    amount, ``fee`` the ceiled swap fee and ``takes`` what the trader receives. On
+    V4 the whole fee stays in the reserve; V3 moves its protocol share out (see
+    ``SundaeV3StableSwapResult``).
     """
 
     raw_swap_result: int
